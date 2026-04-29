@@ -8,6 +8,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Services\SafeModeService;
 use App\Services\SafeModeAnswerService;
+use App\Services\ExamAuditBufferService;
+use App\Jobs\FlushAttemptAuditBuffer;
 
 class ExamSessionController extends Controller
 {
@@ -139,12 +141,10 @@ class ExamSessionController extends Controller
         ]);
         $redis->expire("attempt:{$attempt->id}", 86400);
 
-        // --- AUDIT TRAIL ---
-        \App\Jobs\LogExamAction::dispatch(
-            $attempt->id,
-            'start_exam',
-            $request->ip(),
-            $request->userAgent()
+        // --- AUDIT TRAIL: push start event into per-attempt buffer ---
+        app(ExamAuditBufferService::class)->push(
+            $attempt->id, 'start_exam',
+            $request->ip(), $request->userAgent()
         );
 
         return response()->json([
@@ -240,89 +240,18 @@ class ExamSessionController extends Controller
             $result = ['score' => null]; // non-blocking: result page can retry later
         }
 
-        // ── AUDIT TRAIL ─────────────────────────────────────────────────────────
-        \App\Jobs\LogExamAction::dispatch(
-            $attempt->id,
-            'submit_exam',
-            $request->ip(),
-            $request->userAgent(),
+        // ── AUDIT TRAIL: flush the per-attempt buffer PLUS log the submit event ──
+        app(ExamAuditBufferService::class)->push(
+            $attempt->id, 'submit_exam',
+            $request->ip(), $request->userAgent(),
             ['score' => $result['score'] ?? null]
         );
+        // Dispatch ONE flush job — drains the full buffer for this attempt
+        FlushAttemptAuditBuffer::dispatch($attempt->id);
 
         return response()->json([
             'message' => 'Ujian berhasil dikumpulkan.',
             'score' => $result['score'] ?? null,
-        ]);
-    }
-
-        // --- CENTRALIZED SINGLE-SUBMIT GUARD (Prevent double submission across servers) ---
-        $guard = app(\App\Services\DistributedConsistencyGuard::class);
-        $payload = $guard->sign("attempt:{$attempt->id}", [
-            'action' => 'submit',
-            'timestamp' => now()->timestamp,
-        ]);
-
-        $accepted = $guard->guardedWrite(
-            "attempt:{$attempt->id}",
-            $payload,
-            function () use ($attempt) {
-                // Inside critical section: exclusive per attempt
-
-                // 1. Flush all buffered answers from SafeMode buffer to attempt_answers
-                $safeModeService = app(\App\Services\SafeModeAnswerService::class);
-                $flushResult = $safeModeService->flush($attempt->id);
-                
-                \Log::info("Pre-submit flush executed", [
-                    'attempt_id' => $attempt->id,
-                    'synced' => $flushResult['synced'] ?? 0,
-                    'success' => $flushResult['success'] ?? false,
-                ]);
-
-                // 2. Mark attempt as completed
-                $attempt->update([
-                    'status' => 'completed',
-                    'completed_at' => now(),
-                    // 'answers' column no longer updated — source of truth is attempt_answers
-                ]);
-
-                // 3. Cleanup Redis state (primary answer hash and dirty flag)
-                try {
-                    $redis = \Illuminate\Support\Facades\Redis::connection();
-                    $redis->del("attempt:{$attempt->id}:answers"); // old Redis hash (if still exists)
-                    $redis->srem("attempts:dirty", $attempt->id);
-                    $redis->hset("attempt:{$attempt->id}", 'status', 'completed');
-                } catch (\Exception $e) {
-                    \Log::warning("Redis cleanup failed during submit: " . $e->getMessage());
-                }
-            }
-        );
-
-        if (!$accepted) {
-            // Another server already finalized this attempt — treat as success (idempotent)
-            return response()->json(['message' => 'Ujian sudah selesai.']);
-        }
-
-        // --- RESULT SNAPSHOT: Calculate score once, frozen forever ---
-        try {
-            $attempt->refresh(); // reload after status update
-            $result = app(\App\Services\ScoreCalculator::class)->calculateAndPersist($attempt);
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error("Score snapshot failed: " . $e->getMessage());
-            $result = ['score' => null]; // non-blocking: result page can retry later
-        }
-
-        // --- AUDIT TRAIL ---
-        \App\Jobs\LogExamAction::dispatch(
-            $attempt->id,
-            'submit_exam',
-            $request->ip(),
-            $request->userAgent(),
-            ['score' => $result['score'] ?? null]
-        );
-
-        return response()->json([
-            'message' => 'Ujian berhasil dikumpulkan.',
-            'score'   => $result['score'] ?? null,
         ]);
     }
 
@@ -389,19 +318,13 @@ class ExamSessionController extends Controller
                     $redis->set($throttleKey, 1, 'EX', 30);
                 }
 
-                // --- AUDIT TRAIL (BATCH LOGGING) ---
-                // Pushed to Redis list to be processed in bulk by FlushExamAuditLogsCommand
-                // This ensures O(1) logging time and zero queue overload
-                $logData = [
-                    'attempt_id' => $attemptId,
-                    'action'     => 'answer_change',
-                    'ip_address' => $request->ip(),
-                    'user_agent' => $request->userAgent(),
-                    'payload'    => json_encode(['question_id' => $request->question_id, 'selected_option' => $request->selected_option]),
-                    'created_at' => now()->toDateTimeString(),
-                    'updated_at' => now()->toDateTimeString(),
-                ];
-                $redis->rpush('exam_audit_logs_batch', json_encode($logData));
+                // --- AUDIT TRAIL (PER-ATTEMPT BUFFER) ---
+                // O(1) push to audit:buffer:{attempt_id} — no queue, no DB hit per click
+                app(ExamAuditBufferService::class)->push(
+                    $attemptId, 'answer_change',
+                    $request->ip(), $request->userAgent(),
+                    ['question_id' => $request->question_id, 'selected_option' => $request->selected_option]
+                );
 
                 return response()->json(['status' => 'saved', 'progress' => $progress, 'safe_mode' => false]);
             }
@@ -432,24 +355,13 @@ class ExamSessionController extends Controller
             ], 500);
         }
 
-        // --- AUDIT TRAIL (BATCH LOGGING) ---
-        // Pushed to Redis list to be processed in bulk by FlushExamAuditLogsCommand
-        $logData = [
-            'attempt_id' => $attemptId,
-            'action'     => 'answer_change',
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-            'payload'    => json_encode([
-                'question_id' => $request->question_id,
-                'selected_option' => $request->selected_option,
-                'safe_mode' => true,
-                'buffer_saved' => true,
-            ]),
-            'created_at' => now()->toDateTimeString(),
-            'updated_at' => now()->toDateTimeString(),
-        ];
-        // Ensure we use the Redis facade here if $redis is not defined in this scope
-        \Illuminate\Support\Facades\Redis::rpush('exam_audit_logs_batch', json_encode($logData));
+        // --- AUDIT TRAIL (PER-ATTEMPT BUFFER, SAFE MODE) ---
+        // O(1) push to audit:buffer:{attempt_id}
+        app(ExamAuditBufferService::class)->push(
+            $attemptId, 'answer_change',
+            $request->ip(), $request->userAgent(),
+            ['question_id' => $request->question_id, 'selected_option' => $request->selected_option, 'safe_mode' => true]
+        );
 
         return response()->json([
             'status' => 'saved',
@@ -474,11 +386,10 @@ class ExamSessionController extends Controller
             ->first();
 
         if ($attempt) {
-            \App\Jobs\LogExamAction::dispatch(
-                $attempt->id,
-                'tab_switch',
-                $request->ip(),
-                $request->userAgent()
+            // Push tab_switch to per-attempt buffer (O(1), no queue overhead)
+            app(ExamAuditBufferService::class)->push(
+                $attempt->id, 'tab_switch',
+                $request->ip(), $request->userAgent()
             );
         }
 

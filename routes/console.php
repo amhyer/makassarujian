@@ -91,8 +91,10 @@ Schedule::command('queue:health')
     ->withoutOverlapping()
     ->runInBackground();
 
-// ─── Exam Engine: Flush Audit Logs from Redis to DB ─────────────────────
-Schedule::command('exam:flush-audit-logs')
-    ->everyMinute()
+// ─── Exam Engine: Flush per-attempt audit buffers (every 30s) ───────────
+// Dispatches 1 FlushAttemptAuditBuffer job per active attempt buffer.
+// Far more efficient than 1 job-per-click (old LogExamAction pattern).
+Schedule::command('exam:flush-audit-buffers')
+    ->everyThirtySeconds()
     ->withoutOverlapping()
     ->runInBackground();
