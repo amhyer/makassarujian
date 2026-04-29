@@ -1,0 +1,53 @@
+name: Production Deployment (Blue-Green)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, bcmath, soap, intl, gd, exif, iconv, imagick
+          coverage: none
+          
+      - name: Install Composer Dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
+        
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install NPM dependencies and Build
+        run: |
+          npm ci
+          npm run build
+          
+      - name: Run Pest / PHPUnit Tests
+        # Ensure we run tests on SQLite or a service container database
+        run: php artisan test
+
+  deploy:
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy via SSH (Blue-Green Switch)
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          echo "$DEPLOY_KEY" > deploy_key.pem
+          chmod 600 deploy_key.pem
+          # Execute the Blue-Green deployment script on the remote server
+          ssh -i deploy_key.pem -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "cd /var/www/makassarujian && bash scripts/deploy_blue_green.sh"

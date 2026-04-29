@@ -1,0 +1,33 @@
+groups:
+  - name: SLO_Recording_Rules
+    rules:
+      # 1. Availability Ratio (Success Rate)
+      - record: job:app_request_success:ratio_5m
+        expr: |
+          sum(rate(app_request_duration_seconds_count{status!~"5.."}[5m]))
+          /
+          sum(rate(app_request_duration_seconds_count[5m]))
+          
+      # 2. Error Rate (5xx)
+      - record: job:app_request_error:ratio_5m
+        expr: |
+          sum(rate(app_request_duration_seconds_count{status=~"5.."}[5m]))
+          /
+          sum(rate(app_request_duration_seconds_count[5m]))
+
+      # 3. Latency p95
+      - record: job:app_latency_p95:5m
+        expr: histogram_quantile(0.95, sum(rate(app_request_duration_seconds_bucket[5m])) by (le))
+
+  - name: Error_Budget_Burn_Rates
+    rules:
+      # Assuming a 99.9% availability SLO (0.1% error budget)
+      # Fast Burn: Error rate is 10x the budget (1%)
+      - alert: FastErrorBudgetBurn
+        expr: job:app_request_error:ratio_5m > (0.001 * 10)
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Fast Error Budget Burn Detected"
+          description: "The system is consuming the error budget at 10x the allowed rate for the 99.9% SLO. Current error rate: {{ $value }}."

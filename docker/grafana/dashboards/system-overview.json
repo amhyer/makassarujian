@@ -1,0 +1,54 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "title": "Active Exam Sessions",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 0 },
+      "targets": [ { "expr": "app_active_exam_sessions" } ]
+    },
+    {
+      "title": "Queue Delay (Max Wait Time)",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 18, "x": 6, "y": 0 },
+      "targets": [ { "expr": "app_queue_delay_seconds" } ]
+    },
+    {
+      "title": "Redis Memory Usage",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [ { "expr": "redis_memory_used_bytes" } ]
+    },
+    {
+      "title": "Application Logs (Loki)",
+      "type": "logs",
+      "datasource": "Loki",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 16 },
+      "targets": [ { "expr": "{job=\"laravel\"}" } ]
+    }
+  ],
+  "schemaVersion": 36,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "System Overview",
+  "uid": "system_overview"
+}

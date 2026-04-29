@@ -1,0 +1,54 @@
+# Walkthrough: Ultimate 10,000 Users Scale Test & Chaos Engineering
+
+Sistem Anda kini telah siap dihantam oleh **10.000 virtual users**. Kami telah melakukan perombakan pada generator data untuk mencegah *Memory Leak* (OOM) serta menyusun skrip K6 (`ultimate_load_test.js`) tingkat lanjut.
+
+## 1. Persiapan Data Ujian
+Jalankan generator data yang sudah direfaktor menggunakan *chunking*.
+```bash
+php artisan test:generate-load-data --users=10000
+```
+*CSV `users.csv` akan tercipta dengan sangat cepat berkat optimasi batch insert.*
+
+## 2. Pengawasan Wajib (Monitoring Windows)
+Sebelum menjalankan K6, siapkan 3 jendela Terminal baru untuk melihat langsung detak jantung aplikasi:
+
+- **Terminal 1 (Pantau Antrean Pekerja):**
+  ```bash
+  php artisan horizon
+  ```
+- **Terminal 2 (Pantau Kesehatan Antrean Laravel):**
+  ```bash
+  php artisan queue:health
+  ```
+- **Terminal 3 (Pantau Beban Redis):**
+  ```bash
+  while($true) { docker exec makassarujian-redis-1 redis-cli info stats | Select-String "instantaneous_ops_per_sec|rejected_connections"; Start-Sleep -Seconds 2; Clear-Host; }
+  ```
+
+> [!TIP]
+> **Dashboard Grafana** (`http://localhost:3000`) juga wajib dibuka untuk memantau grafik Redis CPU dan metrik p95 secara visual.
+
+## 3. Eksekusi Load Test dengan Chaos Flags
+Skrip `ultimate_load_test.js` dirancang dengan ambang batas (p95 < 1.5s, error < 1%) dan simulasi siswa *real* (Random Think Time 1-3 detik, Jitter Autosave ±1s). Skrip ini memakan waktu **23 menit** secara total.
+
+Jalankan skrip secara normal:
+```bash
+k6 run ultimate_load_test.js
+```
+
+### Injeksi Kegagalan (Failure Injection)
+Jika Anda ingin menguji sistem dalam kondisi krisis nyata, tambahkan parameter ENV saat menjalankan k6. Laravel dapat disiapkan untuk merespons *header* ini:
+
+**Simulasi Redis Down:**
+```bash
+k6 run -e REDIS_DOWN=true ultimate_load_test.js
+```
+*(Atau Anda bisa secara brutal mem-*pause* Redis dari Docker: `docker pause makassarujian-redis-1` selama 30 detik untuk melihat apakah Autosave gagal, atau memicu Safe Mode).*
+
+**Simulasi Delay Antrean Ekstrem (30 detik):**
+```bash
+k6 run -e QUEUE_DELAY_MS=30000 ultimate_load_test.js
+```
+
+> [!IMPORTANT]
+> Saat Anda memicu injeksi *delay* atau mematikan Redis, perhatikan layar terminal K6. Jika `http_req_duration` melebihi 1.5 detik atau *error rate* menembus 1%, k6 akan melaporkan **Threshold Failed**, memvalidasi limitasi kapasitas riil Anda.

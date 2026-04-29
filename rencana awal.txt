@@ -1,0 +1,1408 @@
+Berikut pendekatan yang lebih “production-grade” untuk SaaS **platform ujian sekolah** yang Anda rancang. Saya fokus ke *arsitektur, tech stack, dan setup awal* — bukan coding.
+
+---
+
+# 🧠 1. Karakter Sistem (Requirement Engineering)
+
+Dari deskripsi Anda, ini bukan sekadar web app biasa. Ini adalah:
+
+* **Multi-tenant SaaS** (banyak sekolah dalam 1 platform)
+* **High concurrency system** (ujian serentak ribuan siswa)
+* **Hybrid client system** (web + proktor app + secure browser)
+* **Role-based system kompleks**
+* **Event-based system** (ujian berbasis sesi & waktu)
+
+👉 Ini implikasinya:
+
+* Harus scalable (horizontal scaling)
+* Harus low latency (real-time monitoring)
+* Harus secure (anti-cheat, anti-exploit)
+* Harus fault-tolerant (ujian tidak boleh crash)
+
+---
+
+# 🏗️ 2. Arsitektur Sistem (Disarankan)
+
+## 🔹 High-Level Architecture
+
+```
+[ Client Browser (Siswa) ]
+        |
+[ Secure Exam Gateway ]
+        |
+[ API Gateway ]
+   |        |
+[ Core App ] [ Realtime Service ]
+   |        |
+[ DB ]    [ Redis / PubSub ]
+   |
+[ Analytics / Warehouse ]
+```
+
+---
+
+## 🔹 Komponen Penting
+
+### 1. **Core Backend (Business Logic)**
+
+* Manajemen user, role, soal, ujian
+* Multi-tenant isolation
+* Scoring engine
+
+### 2. **Realtime Engine**
+
+* Monitoring ujian (proktor)
+* Status siswa (online/offline)
+* Timer ujian sinkron
+
+### 3. **Exam Engine (Critical)**
+
+* Randomisasi soal
+* Anti refresh exploit
+* Auto save jawaban
+* Time locking
+
+### 4. **Client Layer**
+
+* Secure browser (lock environment)
+* Proktor dashboard (monitor live)
+
+---
+
+# ⚙️ 3. Tech Stack (Rekomendasi Optimal)
+
+## 🔹 Backend
+
+### ✅ Opsi utama (stabil & scalable)
+
+* **Framework**:
+  → Laravel + Octane (Swoole/RoadRunner)
+
+* **Alternatif high-performance**:
+  → NestJS (lebih cocok untuk realtime-heavy)
+
+---
+
+### Kenapa Laravel?
+
+* Mature ecosystem
+* Cepat develop SaaS
+* Banyak package:
+
+  * Tenancy
+  * Queue
+  * Auth
+* Cocok untuk kompleks role system
+
+👉 Gunakan:
+
+* Laravel + Octane → untuk concurrency tinggi
+
+---
+
+## 🔹 Frontend
+
+### ✅ Modern Stack
+
+* Custom Admin Dashboard (Laravel Blade + Alpine.js + Tailwind CSS v4)
+* Vue.js (opsional untuk modal/halaman registrasi spesifik)
+
+### Kenapa ini:
+
+* Simpel dan bebas modifikasi 100% (seperti rasa menggunakan AdminLTE)
+* Tidak ada "magic" yang menghalangi kustomisasi HTML/CSS
+* Performa styling optimal dengan Tailwind v4
+
+---
+
+## 🔹 Realtime
+
+* Laravel Reverb (Native WebSockets)
+* Redis Pub/Sub
+
+👉 Use case:
+
+* Live monitoring proktor
+* Timer sinkron (Server authoritative)
+* Status siswa
+
+---
+
+## 🔹 Database
+
+### Primary:
+
+* PostgreSQL
+
+### Kenapa:
+
+* Strong relational consistency
+* Cocok untuk:
+
+  * user role kompleks
+  * relasi ujian
+
+---
+
+### Secondary:
+
+* Redis
+
+Untuk:
+
+* Session
+* Cache
+* Queue
+* Realtime state
+
+---
+
+## 🔹 Queue System
+
+* Laravel Horizon (Redis Queue)
+* Atau:
+
+  * RabbitMQ (kalau scale sangat besar)
+
+👉 Use case:
+
+* Auto grading
+* Kirim notifikasi
+* Generate laporan
+
+---
+
+## 🔹 Storage
+
+* S3-compatible:
+
+  * MinIO (self-host)
+  * AWS S3
+
+👉 Untuk:
+
+* Soal file
+* Media ujian
+
+---
+
+## 🔹 Secure Exam Browser
+
+Ini penting ⚠️
+
+### Opsi:
+
+* Custom Electron App
+* Atau modifikasi Chromium kiosk mode
+
+Fitur:
+
+* Disable tab switching
+* Disable screenshot
+* Fullscreen lock
+* Token-based login
+
+---
+
+## 🔹 Proktor App
+
+* Web-based dashboard + optional desktop app
+* Live monitoring:
+
+  * screen activity
+  * koneksi siswa
+
+---
+
+# 🧩 4. Multi-Tenant Strategy (WAJIB)
+
+Ada 2 pendekatan:
+
+| Approach              | Deskripsi          | Rekomendasi    |
+| --------------------- | ------------------ | -------------- |
+| Single DB + tenant_id | Semua data satu DB | ✅ Start        |
+| Multi DB per sekolah  | Isolasi penuh      | 🔥 Scale besar |
+
+👉 Awal: gunakan **tenant_id column**
+👉 Scale: migrate ke multi-db
+
+---
+
+# 🔐 5. Role & Permission Design
+
+Gunakan RBAC:
+
+* Super Admin
+* Admin Sekolah
+* Admin FKGG
+* Guru:
+
+  * Wali kelas
+  * Guru mapel
+* Siswa
+* Proktor
+
+👉 Gunakan:
+
+* Spatie Permission (Laravel)
+
+---
+
+# 🧪 6. Exam Engine (Core Logic)
+
+Fitur wajib:
+
+### ✔ Anti-cheat
+
+* Random soal per siswa
+* Shuffle pilihan
+* Token sesi unik
+
+### ✔ Reliability
+
+* Auto-save tiap 3–5 detik
+* Resume jika koneksi putus
+
+### ✔ Timer system
+
+* Server authoritative timer (bukan client)
+
+---
+
+# 📊 7. Analytics & Reporting
+
+Tambahkan:
+
+* Ranking
+* Distribusi nilai
+* Deteksi anomali
+
+Opsional advanced:
+
+* ClickHouse untuk analytics besar
+
+---
+
+# 🎨 8. UI/UX Dashboard Strategy
+
+Gunakan arsitektur **Custom Blade Components**:
+
+### 🔹 Design System
+
+* Template Admin berbasis Tailwind murni (Simpel seperti AdminLTE tapi modern)
+* Tailwind CSS v4 styling
+* UI dibangun modular via Laravel Blade Components
+
+### 🔹 Dashboard per Role (Route Grouping)
+
+Contoh:
+
+#### Admin Sekolah
+
+* Statistik ujian
+* Manajemen siswa/guru
+* Download proktor
+
+#### FKGG
+
+* Bank soal nasional
+* Distribusi soal
+
+#### Guru
+
+* Buat ujian
+* Koreksi
+* Monitoring kelas
+
+#### Siswa
+
+* Jadwal ujian
+* Riwayat hasil
+
+---
+
+# 🚀 9. DevOps & Deployment
+
+## Infrastruktur:
+
+* Docker + Docker Compose
+* VPS / Cloud:
+
+  * AWS / GCP / DigitalOcean
+
+## CI/CD:
+
+* GitHub Actions
+
+## Scaling:
+
+* Nginx Load Balancer
+* Horizontal scaling backend
+
+---
+
+# 🧱 10. Roadmap Build (Recommended)
+
+## Phase 1 (MVP)
+
+* Auth + Role
+* CRUD soal & ujian
+* Basic exam engine
+* Dashboard sederhana
+
+## Phase 2
+
+* Realtime monitoring
+* Proktor system
+* Secure browser
+
+## Phase 3
+
+* Multi-tenant scaling
+* Analytics
+* AI anomaly detection
+
+---
+
+# ⚠️ 11. Critical Risk (Harus Diantisipasi)
+
+* ❌ Server overload saat ujian serentak
+* ❌ Cheating via inspect / tab switching
+* ❌ Data loss saat koneksi putus
+* ❌ Time sync antar client
+
+👉 Solusi:
+
+* Redis + Queue
+* Server-side validation
+* Heartbeat system
+
+---
+
+# 🧭 Kesimpulan Stack
+
+**Recommended stack final:**
+
+* Backend: Laravel + Octane
+* Frontend: Custom Blade Dashboard + Tailwind v4 + Alpine.js
+* Realtime: Laravel Reverb + Redis
+* DB: PostgreSQL
+* Queue: Laravel Horizon (Redis)
+* Testing: Pest 3 (Feature, Unit, Realtime Mocks)
+* Storage: S3 / MinIO
+* Infra: Docker + Nginx
+
+---
+
+# 👉 Next Step
+
+Kalau Anda ingin lanjut lebih dalam, saya bisa bantu:
+
+* Desain **database schema (ERD lengkap)**
+* Struktur **folder monorepo (backend + frontend)**
+* Desain **API contract (REST/GraphQL)**
+* Arsitektur **secure exam browser (detail implementasi)**
+
+Tentukan saja bagian mana yang ingin Anda dalami.
+Di bawah ini saya susun **blueprint end-to-end** yang bisa langsung Anda jadikan fondasi implementasi. Struktur dibuat *production-oriented*, menghindari ambiguity, dan siap diskalakan.
+
+---
+
+# 🧱 1. DATABASE SCHEMA (ERD – PRODUCTION READY)
+
+## 🔑 Prinsip Desain
+
+* **Multi-tenant** → `tenant_id` di hampir semua tabel
+* **Auditability** → timestamps + soft delete
+* **Separation of concern** → exam ≠ attempt ≠ answer
+* **Extensible** → mendukung TKA, tryout, ujian sekolah
+
+---
+
+## 🧩 Core Entities
+
+### 🔹 TENANTS (Sekolah / FKGG)
+
+```
+tenants
+- id (uuid)
+- name
+- type (school | fkkg)
+- domain
+- created_at
+```
+
+---
+
+### 🔹 USERS
+
+```
+users
+- id (uuid)
+- tenant_id
+- name
+- email
+- password
+- role_id
+- status
+- last_login_at
+```
+
+---
+
+### 🔹 ROLES
+
+```
+roles
+- id
+- name
+```
+
+### 🔹 PERMISSIONS (RBAC granular)
+
+```
+permissions
+- id
+- name
+```
+
+### 🔹 ROLE_PERMISSIONS
+
+```
+role_permissions
+- role_id
+- permission_id
+```
+
+---
+
+## 🎓 Akademik
+
+### 🔹 CLASSES
+
+```
+classes
+- id
+- tenant_id
+- name
+- level (kelas 1-12)
+```
+
+### 🔹 SUBJECTS
+
+```
+subjects
+- id
+- tenant_id
+- name
+```
+
+---
+
+## 📝 BANK SOAL
+
+### 🔹 QUESTION_BANK
+
+```
+questions
+- id
+- tenant_id
+- created_by
+- subject_id
+- type (mcq | essay)
+- difficulty
+- content (json)
+- explanation
+```
+
+### 🔹 OPTIONS (MCQ)
+
+```
+options
+- id
+- question_id
+- label
+- is_correct
+```
+
+---
+
+## 🧪 EXAM SYSTEM
+
+### 🔹 EXAMS
+
+```
+exams
+- id
+- tenant_id
+- title
+- type (school | tka | tryout)
+- created_by
+- duration
+- total_questions
+- start_time
+- end_time
+- status
+```
+
+---
+
+### 🔹 EXAM_SESSIONS (proktor control)
+
+```
+exam_sessions
+- id
+- exam_id
+- proctor_id
+- session_name
+- start_time
+- end_time
+```
+
+---
+
+### 🔹 EXAM_PARTICIPANTS
+
+```
+exam_participants
+- id
+- exam_id
+- user_id
+- session_id
+- status (not_started | ongoing | finished)
+```
+
+---
+
+## 🧠 ATTEMPT (CORE LOGIC)
+
+### 🔹 ATTEMPTS
+
+```
+attempts
+- id
+- exam_id
+- user_id
+- start_time
+- end_time
+- score
+- status
+```
+
+---
+
+### 🔹 ATTEMPT_QUESTIONS (randomized snapshot)
+
+```
+attempt_questions
+- id
+- attempt_id
+- question_id
+- order_no
+```
+
+👉 penting: snapshot agar soal tidak berubah
+
+---
+
+### 🔹 ANSWERS
+
+```
+answers
+- id
+- attempt_id
+- question_id
+- option_id (nullable)
+- answer_text (essay)
+- is_correct
+```
+
+---
+
+## 📊 ANALYTICS
+
+### 🔹 RESULTS
+
+```
+results
+- id
+- attempt_id
+- score
+- correct_count
+- wrong_count
+- ranking
+```
+
+---
+
+## ⚙️ SYSTEM
+
+### 🔹 AUDIT LOG
+
+```
+audit_logs
+- id
+- user_id
+- action
+- metadata (json)
+- created_at
+```
+
+---
+
+# 🧭 ERD RELATION (Ringkas)
+
+```
+Tenant → Users → Roles → Permissions
+Tenant → Classes → Students
+Tenant → Subjects → Questions → Options
+
+Exam → Session → Participants
+Exam → Attempts → Answers
+
+Attempt → AttemptQuestions → Questions
+```
+
+---
+
+# 📁 2. STRUKTUR APLIKASI (LARAVEL MODULAR)
+
+Gunakan **Laravel Modular / DDD-lite**:
+
+```
+/app
+  /Http
+    /Controllers/Admin
+  /View/Components (Blade UI Components)
+  /Modules
+    /Exam
+    /Auth
+    /Tenant
+    /Dapodik (Integrasi sinkronisasi)
+
+/resources
+  /css
+    app.css (Tailwind v4)
+  /js
+    /components (Vue.js modals)
+    app.js
+
+/tests
+  /Feature (Pest 3)
+  /Unit (Pest 3)
+
+/infrastructure
+  /docker
+```
+
+---
+
+## 🔹 Backend (Laravel)
+
+```
+app/
+  Modules/
+    Auth/
+    User/
+    Exam/
+    Question/
+    Attempt/
+    Analytics/
+
+  Services/
+  Repositories/
+  Policies/
+
+routes/
+  api.php
+```
+
+👉 gunakan **modular architecture (DDD-lite)**
+
+---
+
+## 🔹 Pengujian (Pest 3)
+
+```
+tests/
+  Feature/
+    ExamLifecycleTest.php
+    TenantIsolationTest.php
+    DapodikSyncTest.php
+  Unit/
+    ScoreCalculatorTest.php
+```
+
+👉 Wajib test multi-tenant dan anti-cheat sesuai standar **Pest 3**.
+
+---
+
+# 🌐 3. API CONTRACT (REST DESIGN)
+
+## 🔐 AUTH
+
+```
+POST /auth/login
+POST /auth/logout
+GET  /auth/me
+```
+
+---
+
+## 👤 USERS
+
+```
+GET    /users
+POST   /users
+GET    /users/{id}
+PUT    /users/{id}
+DELETE /users/{id}
+```
+
+---
+
+## 📝 QUESTIONS
+
+```
+GET  /questions
+POST /questions
+GET  /questions/{id}
+PUT  /questions/{id}
+```
+
+---
+
+## 🧪 EXAM
+
+```
+POST /exams
+GET  /exams
+GET  /exams/{id}
+PUT  /exams/{id}
+```
+
+---
+
+## ▶️ START EXAM
+
+```
+POST /exam/start
+BODY:
+{
+  exam_id
+}
+```
+
+RESPONSE:
+
+```
+{
+  attempt_id,
+  questions: [...]
+}
+```
+
+---
+
+## 💾 SAVE ANSWER
+
+```
+POST /exam/answer
+BODY:
+{
+  attempt_id,
+  question_id,
+  option_id
+}
+```
+
+👉 dipanggil tiap 3 detik (autosave)
+
+---
+
+## 🏁 SUBMIT
+
+```
+POST /exam/submit
+```
+
+---
+
+## 📊 RESULT
+
+```
+GET /results/{attempt_id}
+```
+
+---
+
+## 🔴 REALTIME (WebSocket Events)
+
+```
+student:joined
+student:left
+student:answer
+exam:started
+exam:ended
+```
+
+---
+
+# 🖥️ 4. SECURE EXAM BROWSER (KRITIKAL)
+
+## 🎯 Objective
+
+* Mencegah cheating
+* Lock environment
+* Maintain integrity
+
+---
+
+## 🔧 Tech
+
+* Electron.js
+* Chromium kiosk mode
+
+---
+
+## 🧩 Arsitektur
+
+```
+[ Electron App ]
+   |
+[ Secure Layer ]
+   |
+[ Web App (Next.js) ]
+   |
+[ API Backend ]
+```
+
+---
+
+## 🔐 Fitur Wajib
+
+### 1. Lockdown System
+
+* Disable:
+
+  * Alt+Tab
+  * Ctrl+C/V
+  * Right click
+  * DevTools
+
+```js
+globalShortcut.register('Alt+Tab', () => false)
+```
+
+---
+
+### 2. Fullscreen Enforcement
+
+```js
+win.setFullScreen(true)
+win.setKiosk(true)
+```
+
+---
+
+### 3. Token-based Access
+
+Flow:
+
+```
+Login → Server generate token → inject ke browser
+```
+
+---
+
+### 4. Heartbeat System
+
+Client kirim:
+
+```
+POST /heartbeat
+```
+
+Jika tidak aktif:
+→ auto submit / flag cheating
+
+---
+
+### 5. Anti Multiple Device
+
+* 1 user = 1 session
+* Redis lock
+
+---
+
+### 6. Screen Monitoring (Opsional advanced)
+
+* Capture screenshot interval
+* Kirim ke proktor
+
+---
+
+## 🔴 Risk yang Harus Diatasi
+
+| Problem            | Solusi                |
+| ------------------ | --------------------- |
+| Refresh page       | restore attempt       |
+| Internet putus     | local cache + sync    |
+| Cheat via devtools | disable + obfuscation |
+| Multi tab          | token invalidation    |
+
+---
+
+# 🚀 5. STRATEGI IMPLEMENTASI (URUTAN)
+
+## Phase 1
+
+* Auth + RBAC
+* CRUD soal
+* Basic exam
+
+## Phase 2
+
+* Attempt system
+* Autosave
+* Timer sync
+
+## Phase 3
+
+* Realtime proktor
+* WebSocket
+
+## Phase 4
+
+* Secure browser
+* Anti-cheat
+
+## Phase 5
+
+* Scaling (queue, caching)
+
+---
+
+# ⚠️ Catatan Arsitektural Penting
+
+* Jangan gabungkan:
+
+  * exam logic
+  * attempt logic
+    👉 harus dipisah
+
+* Gunakan:
+
+  * Redis untuk state ephemeral
+  * DB untuk persistence
+
+* Timer:
+
+  * harus server authoritative
+
+---
+
+# 🧭 Jika lanjut
+
+Saya bisa lanjutkan ke level lebih dalam:
+
+* ERD dalam bentuk **SQL migration siap pakai**
+* Desain **index & query optimization**
+* Struktur **event-driven (RabbitMQ)**
+* Skema **anti-cheat AI detection**
+
+Pilih saja layer mana yang ingin Anda optimalkan berikutnya.
+Berikut setup **toolchain dari nol → siap develop → siap scale** untuk SaaS ujian Anda. Fokus pada *environment, dependency, dan workflow engineering* (bukan coding).
+
+---
+
+# 🧭 0. Prinsip Setup
+
+* **Reproducible** → semua pakai Docker
+* **Isolated services** → backend, frontend, realtime terpisah
+* **Scalable sejak awal** → tidak perlu refactor besar nanti
+* **Monorepo** → koordinasi antar service lebih mudah
+
+---
+
+# 🧱 1. CORE TOOLCHAIN (WAJIB)
+
+## 🔹 Runtime & Language
+
+Install:
+
+* **Node.js (LTS)** → frontend + realtime
+* **PHP 8.3+** → backend
+* **Composer** → dependency PHP
+
+---
+
+## 🔹 Database & Cache
+
+* PostgreSQL
+* Redis
+
+👉 gunakan Docker (jangan install manual di OS)
+
+---
+
+## 🔹 Containerization
+
+* Docker
+* Docker Compose
+
+👉 ini fondasi semua service
+
+---
+
+## 🔹 Version Control
+
+* Git
+* GitHub / GitLab
+
+---
+
+# 📁 2. MONOREPO INIT
+
+Gunakan:
+
+* Turborepo
+
+```bash
+npx create-turbo@latest
+```
+
+---
+
+## 🔹 Struktur Awal
+
+```id="r9d6g6"
+/apps
+  /web
+  /api
+  /realtime
+  /secure-browser
+  /proctor-app
+
+/packages
+  /ui
+  /config
+  /types
+
+/infrastructure
+  /docker
+```
+
+---
+
+# 🧪 3. BACKEND SETUP (Laravel)
+
+Install:
+
+* Laravel
+
+```bash
+composer create-project laravel/laravel api
+```
+
+---
+
+## 🔹 Tambahan Wajib
+
+* Laravel Octane (performance)
+* Spatie Permission (RBAC)
+* Laravel Sanctum (auth API)
+
+---
+
+## 🔹 Queue
+
+* Redis Queue (default Laravel)
+
+---
+
+# 🌐 4. CUSTOM DASHBOARD & FRONTEND SETUP
+
+Gunakan:
+
+* Laravel Blade + Tailwind CSS v4
+
+```bash
+npm install tailwindcss @tailwindcss/vite alpinejs
+```
+
+---
+
+## 🔹 UI Stack
+
+* Tailwind CSS v4
+* Alpine.js (Untuk interaksi dropdown, modal, dll)
+* Vue.js (Opsional via Inertia untuk modul kompleks)
+
+---
+
+## 🔹 Testing Tool
+
+* Pest 3
+
+```bash
+composer require pestphp/pest --dev --with-all-dependencies
+```
+
+---
+
+# 🔴 5. REALTIME SERVICE
+
+Gunakan:
+
+* Laravel Reverb (Native WebSockets)
+
+```bash
+php artisan install:broadcasting
+```
+
+---
+
+## 🔹 Driver
+
+* Reverb terintegrasi langsung dengan Laravel Events & Echo
+* Redis untuk pub/sub backend
+
+---
+
+# 🖥️ 6. SECURE BROWSER & PROKTOR
+
+## 🔹 Tool
+
+* Electron
+
+```bash
+npm create electron-app@latest secure-browser
+```
+
+---
+
+## 🔹 2 App Terpisah
+
+| App            | Fungsi     |
+| -------------- | ---------- |
+| secure-browser | siswa      |
+| proctor-app    | monitoring |
+
+---
+
+# 🐳 7. DOCKER SETUP (KRITIKAL)
+
+## 🔹 Services
+
+```id="9xizj6"
+- nginx
+- php-fpm (laravel)
+- node (next.js)
+- postgres
+- redis
+```
+
+---
+
+## 🔹 docker-compose.yml (konsep)
+
+```yaml id="ps9n5d"
+services:
+  app:
+    build: ./api
+  web:
+    build: ./apps/web
+  realtime:
+    build: ./apps/realtime
+  db:
+    image: postgres
+  redis:
+    image: redis
+```
+
+---
+
+# 🌍 8. API GATEWAY (OPSIONAL AWAL)
+
+Awal cukup:
+
+* Nginx reverse proxy
+
+Nanti scale:
+
+* Kong / Traefik
+
+---
+
+# 🔐 9. AUTH & SECURITY TOOL
+
+* Laravel Sanctum (API auth)
+* JWT optional
+
+---
+
+# 📦 10. STORAGE
+
+Gunakan:
+
+* MinIO (local S3)
+
+```bash
+docker run minio/minio
+```
+
+---
+
+# 🔧 11. DEV EXPERIENCE
+
+## 🔹 Formatter & Linter
+
+* ESLint
+* Prettier
+* PHP CS Fixer
+
+---
+
+## 🔹 Git Hooks
+
+* Husky
+
+---
+
+## 🔹 Environment
+
+Gunakan `.env` standar:
+
+```env id="uy9eoh"
+DB_CONNECTION=pgsql
+REDIS_HOST=redis
+```
+
+---
+
+# ⚙️ 12. CI/CD (SETUP AWAL)
+
+Gunakan:
+
+* GitHub Actions
+
+Flow:
+
+```id="a1p3kf"
+push → test → build → deploy
+```
+
+---
+
+# 📊 13. OBSERVABILITY (JANGAN DILEWATKAN)
+
+## 🔹 Logging
+
+* Laravel Log
+* Winston (Node)
+
+## 🔹 Monitoring
+
+* Prometheus
+* Grafana
+
+---
+
+# 🚀 14. SETUP URUTAN EKSEKUSI (STEP-BY-STEP)
+
+## STEP 1
+
+* Install Docker
+* Install Node + PHP + Composer
+
+---
+
+## STEP 2
+
+* Init Turborepo
+* Buat folder apps
+
+---
+
+## STEP 3
+
+* Setup Laravel (api)
+* Setup Next.js (web)
+
+---
+
+## STEP 4
+
+* Setup PostgreSQL + Redis via Docker
+
+---
+
+## STEP 5
+
+* Setup NestJS realtime
+
+---
+
+## STEP 6
+
+* Setup Electron apps
+
+---
+
+## STEP 7
+
+* Integrasi semua via Docker Compose
+
+---
+
+## STEP 8
+
+* Setup Nginx reverse proxy
+
+---
+
+# ⚠️ POTENSI MASALAH AWAL
+
+| Issue           | Solusi         |
+| --------------- | -------------- |
+| Port conflict   | mapping docker |
+| CORS error      | config backend |
+| WebSocket gagal | proxy config   |
+| DB lambat       | indexing       |
+
+---
+
+# 🧭 STACK FINAL (READY)
+
+| Layer    | Tech                   |
+| -------- | ---------------------- |
+| Frontend | Custom Blade + Tailwind v4 |
+| Backend  | Laravel + Octane       |
+| Realtime | Laravel Reverb         |
+| DB       | PostgreSQL             |
+| Cache    | Redis                  |
+| Desktop  | Electron               |
+| Infra    | Docker                 |
+
+---
+
+# 👉 NEXT STEP (RECOMMENDED)
+
+Langkah berikutnya yang paling logis:
+
+1. **Setup Docker Compose FULL (production-like)**
+2. **Define ENV standar antar service**
+3. **Buat base schema migration**
+4. **Setup auth flow end-to-end**
+
+---
+
+Kalau Anda mau, saya bisa langsung lanjut:
+
+👉 generate **docker-compose + nginx config siap jalan**
+👉 atau buat **base migration SQL + seed role system**
+👉 atau setup **auth flow lengkap (login → tenant → role)**
+
+Tentukan fokus berikutnya.
+

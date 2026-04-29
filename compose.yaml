@@ -1,0 +1,183 @@
+services:
+    laravel.test:
+        build:
+            context: './vendor/laravel/sail/runtimes/8.5'
+            dockerfile: Dockerfile
+            args:
+                WWWGROUP: '${WWWGROUP}'
+        image: 'sail-8.5/app'
+        extra_hosts:
+            - 'host.docker.internal:host-gateway'
+        ports:
+            - '${APP_PORT:-80}:80'
+            - '${VITE_PORT:-5173}:${VITE_PORT:-5173}'
+        environment:
+            WWWUSER: '${WWWUSER}'
+            LARAVEL_SAIL: 1
+            XDEBUG_MODE: '${SAIL_XDEBUG_MODE:-off}'
+            XDEBUG_CONFIG: '${SAIL_XDEBUG_CONFIG:-client_host=host.docker.internal}'
+            IGNITION_LOCAL_SITES_PATH: '${PWD}'
+        volumes:
+            - '.:/var/www/html'
+        networks:
+            - sail
+        depends_on:
+            - pgsql
+            - redis
+    pgsql:
+        image: 'postgres:18-alpine'
+        ports:
+            - '${FORWARD_DB_PORT:-5432}:5432'
+        environment:
+            PGPASSWORD: '${DB_PASSWORD:-secret}'
+            POSTGRES_DB: '${DB_DATABASE}'
+            POSTGRES_USER: '${DB_USERNAME}'
+            POSTGRES_PASSWORD: '${DB_PASSWORD:-secret}'
+        volumes:
+            - 'sail-pgsql:/var/lib/postgresql'
+            - './vendor/laravel/sail/database/pgsql/create-testing-database.sql:/docker-entrypoint-initdb.d/10-create-testing-database.sql'
+        networks:
+            - sail
+    pgsql-standby:
+        image: 'postgres:18-alpine'
+        ports:
+            - '5433:5432'
+        environment:
+            PGPASSWORD: '${DB_PASSWORD:-secret}'
+            POSTGRES_DB: '${DB_DATABASE}'
+            POSTGRES_USER: '${DB_USERNAME}'
+            POSTGRES_PASSWORD: '${DB_PASSWORD:-secret}'
+        volumes:
+            - 'sail-pgsql-standby:/var/lib/postgresql'
+        networks:
+            - sail
+        healthcheck:
+            test:
+                - CMD
+                - pg_isready
+                - '-q'
+                - '-d'
+                - '${DB_DATABASE}'
+                - '-U'
+                - '${DB_USERNAME}'
+            retries: 3
+            timeout: 5s
+    redis:
+        image: 'redis:alpine'
+        command: redis-server --appendonly yes --save 60 1
+        ports:
+            - '${FORWARD_REDIS_PORT:-6379}:6379'
+        volumes:
+            - 'sail-redis:/data'
+        networks:
+            - sail
+        healthcheck:
+            test:
+                - CMD
+                - redis-cli
+                - ping
+            retries: 3
+            timeout: 5s
+    prometheus:
+        image: prom/prometheus:latest
+        command:
+            - '--config.file=/etc/prometheus/prometheus.yml'
+            - '--storage.tsdb.retention.time=15d'
+        volumes:
+            - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+            - sail-prometheus:/prometheus
+        ports:
+            - "9090:9090"
+        networks:
+            - sail
+        depends_on:
+            - laravel.test
+            - redis-exporter
+    grafana:
+        image: grafana/grafana:latest
+        volumes:
+            - ./docker/grafana/provisioning:/etc/grafana/provisioning
+            - ./docker/grafana/dashboards:/var/lib/grafana/dashboards
+            - sail-grafana:/var/lib/grafana
+        environment:
+            - GF_SECURITY_ADMIN_PASSWORD=secret
+            - GF_USERS_ALLOW_SIGN_UP=false
+        ports:
+            - "3000:3000"
+        networks:
+            - sail
+        depends_on:
+            - prometheus
+            - loki
+            - tempo
+            - alertmanager
+    alertmanager:
+        image: prom/alertmanager:latest
+        ports:
+            - "9093:9093"
+        volumes:
+            - ./docker/prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+        command:
+            - '--config.file=/etc/alertmanager/alertmanager.yml'
+        networks:
+            - sail
+    loki:
+        image: grafana/loki:latest
+        ports:
+            - "3100:3100"
+        command: -config.file=/etc/loki/loki.yml
+        volumes:
+            - ./docker/loki/loki.yml:/etc/loki/loki.yml
+            - sail-loki:/tmp/loki
+        networks:
+            - sail
+    promtail:
+        image: grafana/promtail:latest
+        volumes:
+            - ./storage/logs:/var/log/laravel
+            - ./docker/promtail/promtail-config.yml:/etc/promtail/config.yml
+        command: -config.file=/etc/promtail/config.yml
+        networks:
+            - sail
+        depends_on:
+            - loki
+    tempo:
+        image: grafana/tempo:latest
+        command: [ "-config.file=/etc/tempo.yaml" ]
+        volumes:
+            - ./docker/tempo/tempo.yml:/etc/tempo.yaml
+            - sail-tempo:/tmp/tempo
+        ports:
+            - "3200:3200"   # Tempo
+            - "4317:4317"   # OTLP gRPC
+            - "4318:4318"   # OTLP HTTP
+        networks:
+            - sail
+    redis-exporter:
+        image: oliver006/redis_exporter:latest
+        environment:
+            - REDIS_ADDR=redis://redis:6379
+        ports:
+            - "9121:9121"
+        networks:
+            - sail
+        depends_on:
+            - redis
+networks:
+    sail:
+        driver: bridge
+volumes:
+    sail-pgsql:
+        driver: local
+    sail-redis:
+        driver: local
+    sail-prometheus:
+        driver: local
+    sail-grafana:
+        driver: local
+    sail-pgsql-standby:
+        driver: local
+    sail-tempo:
+        driver: local
+    sail-loki:
+        driver: local

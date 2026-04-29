@@ -1,0 +1,81 @@
+# Panduan Eksekusi Load Testing (k6)
+
+Untuk mengetahui batas pasti sistem Anda (*breaking point*), kita telah menyiapkan infrastruktur **Load Testing** mandiri. Ini adalah skenario pengujian paling realistis yang akan memaksa sistem Anda melayani ribuan pengerjaan ujian secara serentak.
+
+## Tahap 1: Mempersiapkan Pasukan Virtual (Data Generator)
+Sebelum menjalankan pengujian, k6 membutuhkan data partisipan ujian yang asli. Anda tidak perlu memasukkannya secara manual! Saya telah menyiapkan satu *command* ajaib yang akan menyuntikkan ribuan partisipan bayangan langsung ke Database dan mengekspornya ke sebuah file bernama `users.csv`.
+
+Buka terminal peladen Anda dan ketikkan perintah ini:
+```bash
+php artisan test:generate-load-data --users=1000
+```
+> Alat ini akan otomatis memproduksi 1 Sekolah palsu, 1 Ujian palsu, beserta 1.000 data pengguna dan riwayat `Attempt` mereka.
+
+## Tahap 2: Menembakkan Skrip k6
+Pastikan Anda telah mengunduh aplikasi `k6` di mesin penguji Anda (misalnya melalui [k6.io](https://k6.io) atau via `choco install k6`). 
+
+Lalu jalankan skrip tempur tersebut:
+```bash
+k6 run tests/LoadTest/exam_stress_test.js
+```
+
+### Apa yang Dilakukan k6?
+1. **Ramp-up (1 Menit)**: Secara konstan, mesin akan menghidupkan lalu mendaratkan 1.000 Pengguna Virtual ke peladen Anda secara perlahan agar *Load Balancer* tidak panik.
+2. **Sustain (5 Menit)**: Serangan penuh! Selama 5 menit, **1.000 pengguna ini akan serentak mengirimkan jawaban Autosave setiap 5 detik**. Pada titik inilah Queue dan Redis HA Anda akan diuji apakah mereka bisa bertahan menyerap puluhan ribu tembakan *request*.
+3. **Penyelesaian**: Setelah 5 menit, jumlah pengguna akan disurutkan perlahan kembali menjadi nol.
+
+## Tahap 3: Observasi Wajib (*Observability*)
+Sementara layar terminal k6 memompa data, **Anda wajib membuka dua terminal server secara bersamaan** untuk menonton jantung server:
+1. Jalankan `php artisan horizon` (untuk melihat apakah pekerja Horizon melahirkan anak pekerja tambahan secara otomatis).
+2. Jalankan `php artisan queue:health` atau amati dasbor Grafana Anda. Jika metrik *Queue Delay* menunjukkan warna merah atau > 5 detik, berarti Anda telah berhasil menemukan **Batas Kapasitas / Breaking Point** arsitektur *hardware* peladen ini. 
+
+Metrik raksasa k6 di akhir eksekusi akan merangkum:
+- `http_req_duration`: Waktu respon peladen Anda (Target: `p(95) < 1 detik`).
+- `http_req_failed`: Persentase HTTP gagal / 500 Error (Target: `< 1%`).
+
+Jika server Anda mampu menahan gelombang uji ini tanpa *Downtime*, Anda sudah siap sepenuhnya melayani ujian skala provinsi!
+
+---
+
+## 💥 Chaos Engineering (Simulasi Bencana)
+
+Untuk membuktikan bahwa sistem benar-benar tangguh (*resilient*), Anda bisa menginjeksi "bencana buatan" ke dalam server yang sedang berjalan (bahkan saat k6 sedang membombardir server). Pastikan `ALLOW_CHAOS_MODE=true` di file `.env`.
+
+Anda bisa menggunakan Postman atau `curl` untuk menembak endpoint Chaos (pastikan menggunakan token Super Admin / otorisasi yang sah).
+
+### 1. Simulasi Redis Mati (Down)
+Membuat aplikasi menganggap Redis terputus sehingga harus otomatis fallback ke Database dan mengaktifkan **Safe Mode**.
+```bash
+curl -X POST http://localhost:8000/api/test/chaos/inject \
+  -H "Authorization: Bearer <TOKEN_ADMIN_ANDA>" \
+  -H "Content-Type: application/json" \
+  -d '{"redis_down": true}'
+```
+**Validasi:** Lihat UI Siswa. Muncul *banner* kuning "Sistem dalam mode stabilisasi". Jawaban tetap tersimpan sempurna dan sistem tidak *crash*.
+
+### 2. Simulasi Antrean (Queue) Macet / Lambat
+Membuat *Queue Worker* bekerja sangat lambat (delay 30 detik), memicu penumpukan antrean untuk mengetes kecekatan sistem *Auto-Scaling* (Horizon).
+```bash
+curl -X POST http://localhost:8000/api/test/chaos/inject \
+  -H "Authorization: Bearer <TOKEN_ADMIN_ANDA>" \
+  -H "Content-Type: application/json" \
+  -d '{"queue_delay_ms": 30000}'
+```
+**Validasi:** Buka `php artisan horizon` dan lihat jumlah antrean melonjak. Horizon akan merespons dengan menambah *process worker* baru secara dinamis. Jika antrean melewati ambang batas 10.000, sistem otomatis beralih ke *Safe Mode*.
+
+### 3. Simulasi WebSocket (Reverb) Terputus
+Memaksa koneksi WebSocket seluruh peserta terputus untuk menguji apakah status "peserta offline" terekam dengan benar oleh pengawas, dan memastikan klien tetap bisa menyimpan jawaban via HTTP biasa (graceful degradation).
+```bash
+curl -X POST http://localhost:8000/api/test/chaos/websocket-disconnect \
+  -H "Authorization: Bearer <TOKEN_ADMIN_ANDA>" \
+  -H "Content-Type: application/json" \
+  -d '{"exam_id": "all"}'
+```
+**Validasi:** Klien akan menerima event *disconnect*. Pengawas akan melihat ikon sinyal peserta berubah menjadi merah muda/abu-abu. Klien akan mencoba *reconnect* ulang secara otomatis di latar belakang.
+
+### Memulihkan Sistem
+Untuk mengembalikan semuanya menjadi normal setelah uji Chaos:
+```bash
+curl -X POST http://localhost:8000/api/test/chaos/reset \
+  -H "Authorization: Bearer <TOKEN_ADMIN_ANDA>"
+```

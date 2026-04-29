@@ -1,0 +1,63 @@
+groups:
+  - name: SRE_Smart_Alerts
+    rules:
+      # 1. High Latency: p95 > 2 seconds
+      - alert: HighHttpLatency
+        expr: histogram_quantile(0.95, sum(rate(app_request_duration_seconds_bucket[5m])) by (le, route)) > 2
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Latency on {{ $labels.route }}"
+          description: "The 95th percentile of request latency for {{ $labels.route }} is greater than 2 seconds (currently {{ $value }}s) for the last 2 minutes."
+
+      # 2. Redis Saturation: ops/sec high + memory/latency climbing
+      - alert: RedisSaturation
+        # Assuming high ops (>5000/s) AND high memory usage as a proxy for saturation/latency
+        expr: rate(redis_commands_processed_total[1m]) > 5000 and (redis_memory_used_bytes / redis_memory_max_bytes) > 0.8
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis Saturation Detected"
+          description: "Redis operations are very high (>5000 ops/sec) and memory is over 80% capacity, risking latency spikes."
+
+      # 3. Queue Stuck: jobs > 10k AND throughput dropping
+      - alert: QueueStuck
+        expr: app_queue_size > 10000 and rate(app_queue_throughput[5m]) < 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Background Queue Stuck"
+          description: "Queue size is critical ({{ $value }} jobs) and throughput has dropped below 10 jobs/min."
+
+      # 4. Autosave Failure: retry rate (500 errors) high
+      - alert: AutosaveFailure
+        expr: sum(rate(app_request_duration_seconds_count{route="api/exam/save-answer", status=~"5.."}[5m])) > 5
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Autosave endpoint failing"
+          description: "High error rate (retries failing) detected on the autosave endpoint. Score calculation may be delayed or failing."
+
+      # 5. Redis Sync Health: Dirty > 5000
+      - alert: RedisSyncHighDirtyCount
+        expr: app_redis_dirty_count > 5000
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Massive Unsynced Exam Answers"
+          description: "There are currently {{ $value }} dirty exam attempts waiting to be synced to the database. Risk of data loss."
+
+      # 6. Redis Sync Health: Delay > 60s
+      - alert: RedisSyncHighDelay
+        expr: app_sync_delay_seconds > 60
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis Sync is Stuck or Delayed"
+          description: "The Redis-DB synchronization has been delayed for {{ $value }} seconds. Queue jobs might be stuck."
