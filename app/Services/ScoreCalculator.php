@@ -47,7 +47,7 @@ class ScoreCalculator
             $qid      = (string) $question->id;
             $given    = $answers[$qid] ?? null;
             
-            $correctObj = $question->correctAnswer();
+            $correctObj = $question->getCorrectAnswer();
             $correct  = $correctObj['key'] ?? null;
             
             $isRight  = $given !== null && $given === $correct;
@@ -85,7 +85,7 @@ class ScoreCalculator
         // Load questions with correct answers (select only needed columns)
         $questions = $attempt->exam()
             ->questions()
-            ->select(['questions.id', 'correct_option'])
+            ->select(['questions.id', 'content'])
             ->get();
 
         $result = $this->calculate($attempt, $questions);

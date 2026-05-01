@@ -132,6 +132,9 @@ Route::middleware(['auth', 'App\\Http\\Middleware\\IdentifyTenant'])->group(func
 
     // ─── API ENDPOINTS (FOR INTERNAL FRONTEND USE) ──────────────────────────
     Route::post('/api/logs/client', [\App\Http\Controllers\Api\ClientLogController::class, 'store'])->name('api.logs.client');
+    Route::post('/exam/save-answer', [\App\Http\Controllers\Api\ExamSessionController::class, 'saveAnswer'])->name('api.exam.save-answer');
+    Route::get('/exam/session', [\App\Http\Controllers\Api\ExamSessionController::class, 'timer'])->name('api.exam.session');
+    Route::post('/exam/submit', [\App\Http\Controllers\Api\ExamSessionController::class, 'submit'])->name('api.exam.submit');
 
     // ─── USER MANAGEMENT ─────────────────────────────────────────────────
     Route::prefix('user-management')->name('user-management.')->group(function () {

@@ -88,7 +88,7 @@ class Question extends Model
     /**
      * Get the correct answer object/array.
      */
-    public function correctAnswer()
+    public function getCorrectAnswer()
     {
         return collect($this->options)->firstWhere('is_correct', true);
     }

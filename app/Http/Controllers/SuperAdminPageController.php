@@ -5,41 +5,20 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Redis;
-use Illuminate\Support\Facades\Queue;
 use App\Models\Attempt;
 use App\Models\CheatLog;
 use App\Models\AuditLog;
 use App\Models\Setting;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
- * without any data. Each method passes safe default data so the blade
- * templates don't throw undefined variable errors.
- */
+use App\Models\Ticket;
+use App\Models\Announcement;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Redis;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\Models\Permission;
+
 class SuperAdminPageController extends Controller
 {
-    // ─── UJIAN GLOBAL ────────────────────────────────────────────────────
-
-    public function distribusi(): View
-    {
-        return view('pages.ujian.distribusi', [
-            'distributions' => collect([]),
-            'stats' => [
-                'total'   => 0,
-                'active'  => 0,
-                'draft'   => 0,
-                'schools' => 0,
-            ],
-        ]);
-    }
-
-    public function template(): View
-    {
-        return view('pages.ujian.template', [
-            'templates' => collect([]),
-        ]);
-    }
-
     // ─── MONITORING ──────────────────────────────────────────────────────
 
     public function ujianBerlangsung(): View
@@ -224,9 +203,16 @@ class SuperAdminPageController extends Controller
 
     public function rolePermission(): View
     {
+        $roles = Role::with('permissions')->get();
+        $permissions = Permission::all()->groupBy(function ($permission) {
+            // Group by the first part of the permission name, e.g., "users" from "users.create"
+            $parts = explode('.', $permission->name);
+            return $parts[0];
+        });
+
         return view('pages.sistem.role-permission', [
-            'roles'       => collect([]),
-            'permissions' => collect([]),
+            'roles'       => $roles,
+            'permissions' => $permissions,
         ]);
     }
 
@@ -279,26 +265,35 @@ class SuperAdminPageController extends Controller
 
     public function broadcast(): View
     {
+        // Assuming Announcement model exists as per audit docs
+        $broadcasts = Announcement::latest()->paginate(15);
+
         return view('pages.support.broadcast', [
-            'broadcasts' => collect([]),
+            'broadcasts' => $broadcasts,
             'stats' => [
-                'total'     => 0,
-                'sent'      => 0,
-                'scheduled' => 0,
-                'failed'    => 0,
+                'total'     => Announcement::count(),
+                'sent'      => Announcement::where('status', 'sent')->count(),
+                'scheduled' => Announcement::where('status', 'scheduled')->count(),
+                'draft'     => Announcement::where('status', 'draft')->count(),
             ],
         ]);
     }
 
     public function tiket(): View
     {
+        // Assuming Ticket model exists as per audit docs
+        $tickets = Ticket::with(['user', 'tenant'])
+            ->withoutGlobalScope('tenant') // Super admin can see all tickets
+            ->latest()
+            ->paginate(15);
+
         return view('pages.support.tiket', [
-            'tickets' => collect([]),
+            'tickets' => $tickets,
             'stats' => [
-                'total'       => 0,
-                'open'        => 0,
-                'in_progress' => 0,
-                'resolved'    => 0,
+                'total'       => Ticket::withoutGlobalScope('tenant')->count(),
+                'open'        => Ticket::withoutGlobalScope('tenant')->where('status', 'open')->count(),
+                'in_progress' => Ticket::withoutGlobalScope('tenant')->where('status', 'in_progress')->count(),
+                'resolved'    => Ticket::withoutGlobalScope('tenant')->where('status', 'resolved')->count(),
             ],
         ]);
     }
