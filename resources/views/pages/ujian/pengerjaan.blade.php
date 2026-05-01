@@ -7,7 +7,8 @@
 <div x-data="examEngine({
     attemptId: '{{ $attempt->id }}',
     saveUrl: '{{ route('api.exam.save-answer') }}',
-    initialAnswers: @json($attempt->answers ?? [])
+    initialAnswers: @json($attempt->answers ?? []),
+    questions: @json($questions)
 })" class="max-w-5xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
     
     <!-- Sync Status Floating Alert -->
@@ -51,7 +52,7 @@
                     </div>
 
                     <div class="prose prose-slate max-w-none mb-10">
-                        <p class="text-xl leading-relaxed text-slate-800" x-text="currentQuestion.text"></p>
+                        <div class="text-xl leading-relaxed text-slate-800" x-html="currentQuestion.text"></div>
                     </div>
 
                     <div class="space-y-3">
@@ -97,8 +98,12 @@
                 
                 <hr class="my-6 border-slate-100">
                 
-                <button @click="finishExam" class="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all">
-                    Selesai Ujian
+                <button @click="finishExam" :disabled="isSubmitting" class="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all disabled:opacity-50 flex justify-center items-center gap-2">
+                    <span x-show="!isSubmitting">Selesai Ujian</span>
+                    <span x-show="isSubmitting" x-cloak class="flex items-center gap-2">
+                        <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        Menyimpan...
+                    </span>
                 </button>
             </div>
         </div>
@@ -109,16 +114,14 @@
 function examEngine(config) {
     return {
         attemptId: config.attemptId,
-        questions: [
-            { id: 1, text: 'Apa ibukota Indonesia?', options: { A: 'Jakarta', B: 'Bandung', C: 'Surabaya', D: 'Medan' } },
-            { id: 2, text: 'Siapa presiden pertama Indonesia?', options: { A: 'Soeharto', B: 'Soekarno', C: 'BJ Habibie', D: 'Gus Dur' } },
-        ],
+        questions: config.questions || [],
         currentQuestionIndex: 0,
         answers: config.initialAnswers || {},
         offlineBuffer: [],
         isSyncing: false,
         lastSynced: true,
         isSafeMode: false,
+        isSubmitting: false,
         db: null,
 
         async init() {
@@ -275,13 +278,36 @@ function examEngine(config) {
         prevQuestion() { if (this.currentQuestionIndex > 0) this.currentQuestionIndex--; },
 
         finishExam() {
-            if (confirm('Apakah Anda yakin ingin mengakhiri ujian?')) {
+            if (this.isSubmitting) return;
+
+            if (confirm('Apakah Anda yakin ingin mengakhiri ujian? Semua jawaban akan disimpan secara permanen.')) {
                 // Final sync check
                 if (this.offlineBuffer.length > 0) {
-                    alert('Mohon tunggu, masih ada jawaban yang sedang disinkronkan...');
+                    alert('Mohon tunggu, masih ada jawaban yang sedang disinkronkan ke server...');
                     return;
                 }
-                document.getElementById('finish-form').submit();
+                
+                this.isSubmitting = true; // Kunci tombol agar tidak dobel submit
+
+                // Submit to backend
+                fetch('{{ route('api.exam.submit') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: JSON.stringify({ attempt_id: this.attemptId })
+                }).then(async (res) => {
+                    if (res.ok) {
+                        window.location.href = '{{ route('siswa.dashboard') }}';
+                    } else {
+                        alert('Terjadi kesalahan saat menyimpan ujian. Silakan coba lagi.');
+                        this.isSubmitting = false;
+                    }
+                }).catch(e => {
+                    alert('Koneksi terputus. Pastikan internet Anda stabil untuk mengakhiri ujian.');
+                    this.isSubmitting = false;
+                });
             }
         }
     }

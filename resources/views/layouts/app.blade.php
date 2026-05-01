@@ -58,19 +58,20 @@
     </div>
 
     <!-- Desktop sidebar -->
-    <div x-show="desktopSidebarOpen" x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="-translate-x-full" x-transition:enter-end="translate-x-0"
-        x-transition:leave="transition ease-in duration-300" x-transition:leave-start="translate-x-0"
-        x-transition:leave-end="-translate-x-full"
-        class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
-        <div class="flex grow flex-col gap-y-5 overflow-y-auto border-r border-slate-200 bg-white px-6 pb-4">
-            <div class="flex h-16 shrink-0 items-center border-b border-slate-100">
-                <span class="text-xl font-bold tracking-tight text-indigo-600">Makassar Ujian</span>
+    <div :class="desktopSidebarOpen ? 'lg:w-72' : 'lg:w-20'" class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:flex-col transition-all duration-300">
+        <div class="flex grow flex-col gap-y-5 overflow-y-auto border-r border-slate-200 bg-white" :class="desktopSidebarOpen ? 'px-6' : 'px-3'">
+            <div class="flex h-16 shrink-0 items-center">
+                <a href="{{ route('dashboard') }}" class="flex items-center gap-x-2 w-full" :class="!desktopSidebarOpen && 'justify-center'">
+                    <svg class="h-8 w-auto text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                    </svg>
+                    <span x-show="desktopSidebarOpen" x-transition.opacity.duration.200 class="text-xl font-bold tracking-tight text-indigo-600">Makassar Ujian</span>
+                </a>
             </div>
             <nav class="flex flex-1 flex-col">
                 <ul role="list" class="flex flex-1 flex-col gap-y-7">
                     <li>
-                                @include('layouts.sidebar-menu')
+                        @include('layouts.sidebar-menu')
                     </li>
                 </ul>
             </nav>
@@ -78,8 +79,7 @@
     </div>
 
     <!-- Main Content wrapper -->
-    <div :class="desktopSidebarOpen ? 'lg:pl-72' : 'lg:pl-0'"
-        class="flex flex-col h-screen transition-all duration-300">
+    <div :class="desktopSidebarOpen ? 'lg:pl-72' : 'lg:pl-20'" class="flex flex-col h-screen transition-all duration-300">
         <!-- Top Navigation -->
         <div
             class="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-slate-200 bg-white/80 backdrop-blur-md px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">

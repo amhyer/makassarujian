@@ -141,7 +141,7 @@ Route::middleware(['auth', 'App\\Http\\Middleware\\IdentifyTenant'])->group(func
 
     // ─── SISTEM ──────────────────────────────────────────────────────────
     Route::prefix('sistem')->name('sistem.')->group(function () {
-        Route::get('/konfigurasi',    [SuperAdminPageController::class, 'konfigurasi'])->name('konfigurasi');
+        Route::match(['get', 'post'], '/konfigurasi', [SuperAdminPageController::class, 'konfigurasi'])->name('konfigurasi');
         Route::get('/role-permission',[SuperAdminPageController::class, 'rolePermission'])->name('role-permission');
         Route::get('/audit-log',      [SuperAdminPageController::class, 'auditLog'])->name('audit-log');
     });

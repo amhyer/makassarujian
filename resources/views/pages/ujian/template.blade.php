@@ -47,76 +47,37 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-200">
+                            @forelse($templates as $template)
                             <tr>
-                                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-0">DAT-001</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">Data Contoh 1</td>
+                                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-0">{{ $template->title }}</td>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{{ Str::limit($template->description, 50) }}</td>
                                 <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
-                                    <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Aktif</span>
+                                    @if($template->status === 'published')
+                                        <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Aktif</span>
+                                    @elseif($template->status === 'draft')
+                                        <span class="inline-flex items-center rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-500/10">Draft</span>
+                                    @else
+                                        <span class="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20">{{ ucfirst($template->status) }}</span>
+                                    @endif
                                 </td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">24 Apr 2026</td>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{{ $template->updated_at->format('d M Y') }}</td>
                                 <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-0">
                                     <a href="#" class="text-indigo-600 hover:text-indigo-900">Edit</a>
                                 </td>
                             </tr>
+                            @empty
                             <tr>
-                                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-0">DAT-002</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">Data Contoh 2</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
-                                    <span class="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20">Pending</span>
-                                </td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">23 Apr 2026</td>
-                                <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-0">
-                                    <a href="#" class="text-indigo-600 hover:text-indigo-900">Edit</a>
-                                </td>
+                                <td colspan="5" class="px-3 py-4 text-sm text-center text-slate-500">Belum ada template ujian.</td>
                             </tr>
-                            <tr>
-                                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-0">DAT-003</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">Data Contoh 3</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
-                                    <span class="inline-flex items-center rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-500/10">Draft</span>
-                                </td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">22 Apr 2026</td>
-                                <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-0">
-                                    <a href="#" class="text-indigo-600 hover:text-indigo-900">Edit</a>
-                                </td>
-                            </tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
-        <!-- Pagination Mockup -->
-        <div class="mt-4 flex items-center justify-between border-t border-slate-200 pt-4">
-            <div class="flex flex-1 justify-between sm:hidden">
-                <a href="#" class="relative inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Previous</a>
-                <a href="#" class="relative ml-3 inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Next</a>
-            </div>
-            <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                <div>
-                    <p class="text-sm text-slate-700">
-                        Menampilkan <span class="font-medium">1</span> sampai <span class="font-medium">3</span> dari <span class="font-medium">12</span> data
-                    </p>
-                </div>
-                <div>
-                    <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-                        <a href="#" class="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">
-                            <span class="sr-only">Previous</span>
-                            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" />
-                            </svg>
-                        </a>
-                        <a href="#" aria-current="page" class="relative z-10 inline-flex items-center bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">1</a>
-                        <a href="#" class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">2</a>
-                        <a href="#" class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">3</a>
-                        <a href="#" class="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">
-                            <span class="sr-only">Next</span>
-                            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
-                            </svg>
-                        </a>
-                    </nav>
-                </div>
-            </div>
+        <!-- Pagination -->
+        <div class="mt-4">
+            {{ $templates->links() }}
         </div>
     </div>
 </div>

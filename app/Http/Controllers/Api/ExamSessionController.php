@@ -166,6 +166,10 @@ class ExamSessionController extends Controller
 
         $attempt = Attempt::findOrFail($request->attempt_id);
 
+        // --- IDOR PROTECTION & TENANT ISOLATION ---
+        abort_if($attempt->user_id !== Auth::id(), 403, 'Akses ditolak. Ujian ini bukan milik Anda.');
+        abort_if($attempt->tenant_id !== Auth::user()->tenant_id, 403, 'Akses ditolak.');
+
         // ── FAST PATH: already done (idempotent) ───────────────────────────────
         if ($attempt->status === 'completed') {
             return response()->json(['message' => 'Ujian sudah selesai.']);
@@ -268,6 +272,13 @@ class ExamSessionController extends Controller
         ]);
 
         $attemptId = $request->attempt_id;
+
+        // --- IDOR PROTECTION & TENANT ISOLATION ---
+        $attempt = Attempt::findOrFail($attemptId);
+        if ($attempt->user_id !== Auth::id() || $attempt->tenant_id !== Auth::user()->tenant_id) {
+            return response()->json(['message' => 'Akses ditolak. Manipulasi data terdeteksi.'], 403);
+        }
+
         $isSafeMode = SafeModeService::isActive();
         $currentSessionId = session()->getId();
 
@@ -411,6 +422,11 @@ class ExamSessionController extends Controller
         ]);
 
         $attempt = \App\Models\Attempt::findOrFail($request->attempt_id);
+
+        // --- IDOR PROTECTION & TENANT ISOLATION ---
+        if ($attempt->user_id !== Auth::id() || $attempt->tenant_id !== Auth::user()->tenant_id) {
+            return response()->json(['message' => 'Akses ditolak.'], 403);
+        }
 
         $cheatLog = \App\Models\CheatLog::create([
             'attempt_id' => $attempt->id,

@@ -1,215 +1,178 @@
-<ul role="list" class="-mx-2 space-y-1">
-    <!-- Dashboard -->
+@php
+    // Helper functions for cleaner active state logic in the template
+    function is_active($routes) {
+        $routes = is_array($routes) ? $routes : [$routes];
+        foreach ($routes as $route) {
+            if (request()->routeIs($route)) {
+                return 'bg-indigo-100 text-indigo-600';
+            }
+        }
+        return 'text-slate-700 hover:text-indigo-600 hover:bg-indigo-50';
+    }
+
+    function is_active_icon($routes) {
+        $routes = is_array($routes) ? $routes : [$routes];
+        foreach ($routes as $route) {
+            if (request()->routeIs($route)) {
+                return 'text-indigo-600';
+            }
+        }
+        return 'text-slate-400 group-hover:text-indigo-600';
+    }
+@endphp
+
+<ul role="list" class="space-y-1">
+    <!-- ═══ General ══════════════════════════════════════════════════════ -->
     <li>
-        <a href="{{ route('dashboard') ?? '#' }}"
-            class="flex w-full items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-all duration-200 group {{ request()->routeIs('dashboard') ? 'bg-indigo-50 text-indigo-600' : 'text-slate-700 hover:bg-slate-50 hover:text-indigo-600' }}">
-            <svg class="h-6 w-6 shrink-0 {{ request()->routeIs('dashboard') ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-600' }}" fill="none"
-                viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />
+        <a href="{{ route('super-admin.dashboard') }}"
+           class="{{ is_active('super-admin.dashboard') }} group flex items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors duration-150"
+           :class="!desktopSidebarOpen && 'justify-center'">
+            <svg class="{{ is_active_icon('super-admin.dashboard') }} h-6 w-6 shrink-0 transition-colors duration-150" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h7.5" />
             </svg>
-            Dashboard
+            <span x-show="desktopSidebarOpen" x-transition.opacity.duration.200>Dashboard</span>
         </a>
     </li>
 
-    <!-- Manajemen Tenant -->
-    <li x-data="{ open: {{ request()->is('tenants*') ? 'true' : 'false' }} }">
-        <button @click="open = !open"
-            class="flex w-full items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-all duration-200 group"
-            :class="open ? 'bg-slate-50 text-indigo-600' : 'text-slate-700 hover:bg-slate-50 hover:text-indigo-600'">
-            <svg class="h-6 w-6 shrink-0 transition-colors duration-200"
-                :class="open ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-600'" fill="none"
-                viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+    <!-- ═══ Manajemen Tenant ═════════════════════════════════════════════ -->
+    <li x-show="desktopSidebarOpen" class="px-2 pt-4">
+        <div class="text-xs font-semibold leading-6 text-slate-400">Manajemen Tenant</div>
+    </li>
+    <li>
+        <a href="{{ route('tenants.schools') }}"
+           class="{{ is_active(['tenants.schools', 'tenants.schools.*']) }} group flex items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors duration-150"
+           :class="!desktopSidebarOpen && 'justify-center'">
+            <svg class="{{ is_active_icon(['tenants.schools', 'tenants.schools.*']) }} h-6 w-6 shrink-0 transition-colors duration-150" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
             </svg>
-            Manajemen Tenant
-            <svg class="ml-auto h-5 w-5 shrink-0 transition-transform duration-200"
-                :class="open ? 'text-indigo-600 rotate-180' : 'text-slate-400 group-hover:text-indigo-600'" fill="none"
-                viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            <span x-show="desktopSidebarOpen" x-transition.opacity.duration.200>Sekolah</span>
+        </a>
+    </li>
+    <li>
+        <a href="{{ route('tenants.fkkg') }}"
+           class="{{ is_active('tenants.fkkg') }} group flex items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors duration-150"
+           :class="!desktopSidebarOpen && 'justify-center'">
+            <svg class="{{ is_active_icon('tenants.fkkg') }} h-6 w-6 shrink-0 transition-colors duration-150" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6A1.125 1.125 0 012.25 10.875v-3.75zM14.25 8.625c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v8.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-8.25zM3.75 16.125c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-2.25z" />
             </svg>
-        </button>
-        <ul x-show="open" x-transition class="mt-1 px-2 space-y-1">
-            <li><a href="{{ route('tenants.schools') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('tenants.schools') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">Sekolah</a>
-            </li>
-            <li><a href="{{ route('tenants.fkkg') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('tenants.fkkg') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">FKGG</a>
-            </li>
-            <li><a href="{{ route('tenants.activation') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('tenants.activation') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">Aktivasi & Status</a></li>
-        </ul>
+            <span x-show="desktopSidebarOpen" x-transition.opacity.duration.200>FKKG</span>
+        </a>
+    </li>
+    <li>
+        <a href="{{ route('tenants.activation') }}"
+           class="{{ is_active('tenants.activation') }} group flex items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors duration-150"
+           :class="!desktopSidebarOpen && 'justify-center'">
+            <svg class="{{ is_active_icon('tenants.activation') }} h-6 w-6 shrink-0 transition-colors duration-150" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+            </svg>
+            <span x-show="desktopSidebarOpen" x-transition.opacity.duration.200>Aktivasi</span>
+        </a>
     </li>
 
-    <!-- Billing & Subscription -->
-    <li x-data="{ open: {{ request()->is('billing*') ? 'true' : 'false' }} }">
-        <button @click="open = !open"
-            class="flex w-full items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-all duration-200 group"
-            :class="open ? 'bg-slate-50 text-indigo-600' : 'text-slate-700 hover:bg-slate-50 hover:text-indigo-600'">
-            <svg class="h-6 w-6 shrink-0 transition-colors duration-200"
-                :class="open ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-600'" fill="none"
-                viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V4.22c0-.756-.728-1.294-1.453-1.096a60.364 60.364 0 00-15.797 2.102c-.75.225-1.25.925-1.25 1.71v10.054c0 .784.5 1.484 1.25 1.71z" />
+    <!-- ═══ Billing ══════════════════════════════════════════════════════ -->
+    <li x-show="desktopSidebarOpen" class="px-2 pt-4">
+        <div class="text-xs font-semibold leading-6 text-slate-400">Billing</div>
+    </li>
+    <li>
+        <a href="{{ route('billing.dashboard.revenue') }}"
+           class="{{ is_active('billing.dashboard.revenue') }} group flex items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors duration-150"
+           :class="!desktopSidebarOpen && 'justify-center'">
+            <svg class="{{ is_active_icon('billing.dashboard.revenue') }} h-6 w-6 shrink-0 transition-colors duration-150" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.75A.75.75 0 013 4.5h.75m0 0h.75A.75.75 0 015.25 6v.75m0 0v.75A.75.75 0 014.5 8.25h-.75m0 0h-.75A.75.75 0 012.25 7.5v-.75M6 15V7.5a2.25 2.25 0 012.25-2.25h3.75a2.25 2.25 0 012.25 2.25V15m-9.75-4.5h9.75" />
             </svg>
-            Billing & Subscription
-            <svg class="ml-auto h-5 w-5 shrink-0 transition-transform duration-200"
-                :class="open ? 'text-indigo-600 rotate-180' : 'text-slate-400 group-hover:text-indigo-600'" fill="none"
-                viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            <span x-show="desktopSidebarOpen" x-transition.opacity.duration.200>Revenue</span>
+        </a>
+    </li>
+    <li>
+        <a href="{{ route('billing.plans') }}"
+           class="{{ is_active('billing.plans') }} group flex items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors duration-150"
+           :class="!desktopSidebarOpen && 'justify-center'">
+            <svg class="{{ is_active_icon('billing.plans') }} h-6 w-6 shrink-0 transition-colors duration-150" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L9.568 3z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" />
             </svg>
-        </button>
-        <ul x-show="open" x-transition class="mt-1 px-2 space-y-1">
-            <li><a href="{{ route('billing.plans') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('billing.plans') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">Paket & Harga</a></li>
-            <li><a href="{{ route('billing.invoices') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('billing.invoices') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">Tagihan</a>
-            </li>
-            <li><a href="{{ route('billing.payments') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('billing.payments') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">Pembayaran</a>
-            </li>
-            <li><a href="{{ route('billing.trials') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('billing.trials') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">Trial Management</a></li>
-        </ul>
+            <span x-show="desktopSidebarOpen" x-transition.opacity.duration.200>Paket</span>
+        </a>
+    </li>
+    <li>
+        <a href="{{ route('billing.invoices') }}"
+           class="{{ is_active(['billing.invoices', 'billing.invoices.*']) }} group flex items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors duration-150"
+           :class="!desktopSidebarOpen && 'justify-center'">
+            <svg class="{{ is_active_icon(['billing.invoices', 'billing.invoices.*']) }} h-6 w-6 shrink-0 transition-colors duration-150" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75c0-.231-.035-.454-.1-.664M6.75 7.5H18a2.25 2.25 0 012.25 2.25v9a2.25 2.25 0 01-2.25-2.25H6.75a2.25 2.25 0 01-2.25-2.25v-9a2.25 2.25 0 012.25-2.25z" />
+            </svg>
+            <span x-show="desktopSidebarOpen" x-transition.opacity.duration.200>Tagihan</span>
+        </a>
+    </li>
+    <li>
+        <a href="{{ route('billing.payments') }}"
+           class="{{ is_active('billing.payments') }} group flex items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors duration-150"
+           :class="!desktopSidebarOpen && 'justify-center'">
+            <svg class="{{ is_active_icon('billing.payments') }} h-6 w-6 shrink-0 transition-colors duration-150" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+            </svg>
+            <span x-show="desktopSidebarOpen" x-transition.opacity.duration.200>Pembayaran</span>
+        </a>
+    </li>
+    <li>
+        <a href="{{ route('billing.trials') }}"
+           class="{{ is_active('billing.trials') }} group flex items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors duration-150"
+           :class="!desktopSidebarOpen && 'justify-center'">
+            <svg class="{{ is_active_icon('billing.trials') }} h-6 w-6 shrink-0 transition-colors duration-150" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span x-show="desktopSidebarOpen" x-transition.opacity.duration.200>Trial</span>
+        </a>
     </li>
 
-    <!-- Ujian Global -->
-    <li x-data="{ open: {{ request()->is('ujian*') ? 'true' : 'false' }} }">
-        <button @click="open = !open"
-            class="flex w-full items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-all duration-200 group"
-            :class="open ? 'bg-slate-50 text-indigo-600' : 'text-slate-700 hover:bg-slate-50 hover:text-indigo-600'">
-            <svg class="h-6 w-6 shrink-0 transition-colors duration-200"
-                :class="open ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-600'" fill="none"
-                viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+    <!-- ═══ Ujian ══════════════════════════════════════════════════════════ -->
+    <li x-show="desktopSidebarOpen" class="px-2 pt-4">
+        <div class="text-xs font-semibold leading-6 text-slate-400">Ujian</div>
+    </li>
+    <li>
+        <a href="{{ route('ujian.bank-soal') }}"
+           class="{{ is_active('ujian.bank-soal') }} group flex items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors duration-150"
+           :class="!desktopSidebarOpen && 'justify-center'">
+            <svg class="{{ is_active_icon('ujian.bank-soal') }} h-6 w-6 shrink-0 transition-colors duration-150" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
             </svg>
-            Ujian Global
-            <svg class="ml-auto h-5 w-5 shrink-0 transition-transform duration-200"
-                :class="open ? 'text-indigo-600 rotate-180' : 'text-slate-400 group-hover:text-indigo-600'" fill="none"
-                viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            <span x-show="desktopSidebarOpen" x-transition.opacity.duration.200>Bank Soal</span>
+        </a>
+    </li>
+    <li>
+        <a href="{{ route('exams.index') }}"
+           class="{{ is_active(['exams.index', 'exams.create', 'exams.edit', 'exams.show']) }} group flex items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors duration-150"
+           :class="!desktopSidebarOpen && 'justify-center'">
+            <svg class="{{ is_active_icon(['exams.index', 'exams.create', 'exams.edit', 'exams.show']) }} h-6 w-6 shrink-0 transition-colors duration-150" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h.01M15 12h.01M10.5 16.5h3M13.5 16.5h-3" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-        </button>
-        <ul x-show="open" x-transition class="mt-1 px-2 space-y-1">
-            <li><a href="{{ route('ujian.bank-soal') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('ujian.bank-soal') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">Bank Soal</a></li>
-            <li><a href="{{ route('questions.create') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('questions.create') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">Input Soal Baru</a></li>
-            <li><a href="{{ route('ujian.distribusi') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('ujian.distribusi') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">Distribusi Soal</a></li>
-            <li><a href="{{ route('ujian.template') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('ujian.template') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">Template Ujian</a></li>
-        </ul>
+            <span x-show="desktopSidebarOpen" x-transition.opacity.duration.200>Manajemen Ujian</span>
+        </a>
     </li>
 
-    <!-- Monitoring -->
-    <li x-data="{ open: {{ request()->is('monitoring*') ? 'true' : 'false' }} }">
-        <button @click="open = !open"
-            class="flex w-full items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-all duration-200 group"
-            :class="open ? 'bg-slate-50 text-indigo-600' : 'text-slate-700 hover:bg-slate-50 hover:text-indigo-600'">
-            <svg class="h-6 w-6 shrink-0 transition-colors duration-200"
-                :class="open ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-600'" fill="none"
-                viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-            </svg>
-            Monitoring
-            <svg class="ml-auto h-5 w-5 shrink-0 transition-transform duration-200"
-                :class="open ? 'text-indigo-600 rotate-180' : 'text-slate-400 group-hover:text-indigo-600'" fill="none"
-                viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-            </svg>
-        </button>
-        <ul x-show="open" x-transition class="mt-1 px-2 space-y-1">
-            <li><a href="{{ route('monitoring.ujian-berlangsung') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('monitoring.ujian-berlangsung') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">Ujian Berlangsung</a></li>
-            <li><a href="{{ route('monitoring.aktivitas-siswa') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('monitoring.aktivitas-siswa') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">Aktivitas Siswa</a></li>
-            <li><a href="{{ route('monitoring.status-server') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('monitoring.status-server') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">Status Server</a></li>
-        </ul>
+    <!-- ═══ Monitoring ═══════════════════════════════════════════════════ -->
+    <li x-show="desktopSidebarOpen" class="px-2 pt-4">
+        <div class="text-xs font-semibold leading-6 text-slate-400">Monitoring</div>
     </li>
-
-    <!-- User Management -->
-    <li x-data="{ open: {{ request()->is('user-management*') ? 'true' : 'false' }} }">
-        <button @click="open = !open"
-            class="flex w-full items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-all duration-200 group"
-            :class="open ? 'bg-slate-50 text-indigo-600' : 'text-slate-700 hover:bg-slate-50 hover:text-indigo-600'">
-            <svg class="h-6 w-6 shrink-0 transition-colors duration-200"
-                :class="open ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-600'" fill="none"
-                viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+    <li>
+        <a href="{{ route('monitoring.ujian-berlangsung') }}"
+           class="{{ is_active('monitoring.ujian-berlangsung') }} group flex items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors duration-150"
+           :class="!desktopSidebarOpen && 'justify-center'">
+            <svg class="{{ is_active_icon('monitoring.ujian-berlangsung') }} h-6 w-6 shrink-0 transition-colors duration-150" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.375 1.5-10.5 10.5 0 00-9.25-5.131 1.5 1.5 0 01-1.5-1.5v-2.253a1.5 1.5 0 011.5-1.5h16.5a1.5 1.5 0 011.5 1.5v2.253a1.5 1.5 0 01-1.5 1.5-10.5 10.5 0 00-9.25 5.131 3 3 0 01-.375-1.5v-1.007z" />
             </svg>
-            User Management
-            <svg class="ml-auto h-5 w-5 shrink-0 transition-transform duration-200"
-                :class="open ? 'text-indigo-600 rotate-180' : 'text-slate-400 group-hover:text-indigo-600'" fill="none"
-                viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-            </svg>
-        </button>
-        <ul x-show="open" x-transition class="mt-1 px-2 space-y-1">
-            <li><a href="{{ route('user-management.admin-sekolah') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('user-management.admin-sekolah') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">Admin Sekolah</a></li>
-            <li><a href="{{ route('user-management.admin-fkgg') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('user-management.admin-fkgg') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">Admin FKGG</a></li>
-        </ul>
+            <span x-show="desktopSidebarOpen" x-transition.opacity.duration.200>Ujian Berlangsung</span>
+        </a>
     </li>
-
-    <!-- Sistem -->
-    <li x-data="{ open: {{ request()->is('sistem*') ? 'true' : 'false' }} }">
-        <button @click="open = !open"
-            class="flex w-full items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-all duration-200 group"
-            :class="open ? 'bg-slate-50 text-indigo-600' : 'text-slate-700 hover:bg-slate-50 hover:text-indigo-600'">
-            <svg class="h-6 w-6 shrink-0 transition-colors duration-200"
-                :class="open ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-600'" fill="none"
-                viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    <li>
+        <a href="{{ route('monitoring.status-server') }}"
+           class="{{ is_active('monitoring.status-server') }} group flex items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors duration-150"
+           :class="!desktopSidebarOpen && 'justify-center'">
+            <svg class="{{ is_active_icon('monitoring.status-server') }} h-6 w-6 shrink-0 transition-colors duration-150" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V8.25a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 8.25v7.5A2.25 2.25 0 006.75 18z" />
             </svg>
-            Sistem
-            <svg class="ml-auto h-5 w-5 shrink-0 transition-transform duration-200"
-                :class="open ? 'text-indigo-600 rotate-180' : 'text-slate-400 group-hover:text-indigo-600'" fill="none"
-                viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-            </svg>
-        </button>
-        <ul x-show="open" x-transition class="mt-1 px-2 space-y-1">
-            <li><a href="{{ route('sistem.konfigurasi') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('sistem.konfigurasi') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">Konfigurasi Global</a></li>
-            <li><a href="{{ route('sistem.role-permission') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('sistem.role-permission') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">Role & Permission</a></li>
-            <li><a href="{{ route('sistem.audit-log') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('sistem.audit-log') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">Audit Log</a></li>
-        </ul>
-    </li>
-
-    <!-- Support & Notifikasi -->
-    <li x-data="{ open: {{ request()->is('support*') ? 'true' : 'false' }} }">
-        <button @click="open = !open"
-            class="flex w-full items-center gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-all duration-200 group"
-            :class="open ? 'bg-slate-50 text-indigo-600' : 'text-slate-700 hover:bg-slate-50 hover:text-indigo-600'">
-            <svg class="h-6 w-6 shrink-0 transition-colors duration-200"
-                :class="open ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-600'" fill="none"
-                viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-            </svg>
-            Support & Notifikasi
-            <svg class="ml-auto h-5 w-5 shrink-0 transition-transform duration-200"
-                :class="open ? 'text-indigo-600 rotate-180' : 'text-slate-400 group-hover:text-indigo-600'" fill="none"
-                viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-            </svg>
-        </button>
-        <ul x-show="open" x-transition class="mt-1 px-2 space-y-1">
-            <li><a href="{{ route('support.broadcast') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('support.broadcast') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">Broadcast</a>
-            </li>
-            <li><a href="{{ route('support.tiket') }}"
-                    class="block rounded-md py-2 pr-2 pl-9 text-sm leading-6 transition-colors {{ request()->routeIs('support.tiket') ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">Tiket Bantuan</a></li>
-        </ul>
+            <span x-show="desktopSidebarOpen" x-transition.opacity.duration.200>Status Server</span>
+        </a>
     </li>
 </ul>

@@ -46,7 +46,10 @@ class ScoreCalculator
         foreach ($questions as $question) {
             $qid      = (string) $question->id;
             $given    = $answers[$qid] ?? null;
-            $correct  = $question->correct_option;
+            
+            $correctObj = $question->correctAnswer();
+            $correct  = $correctObj['key'] ?? null;
+            
             $isRight  = $given !== null && $given === $correct;
 
             if ($isRight) {

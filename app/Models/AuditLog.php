@@ -5,9 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Request;
+use App\Modules\Tenant\Traits\BelongsToTenant;
 
 class AuditLog extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'user_id',
         'tenant_id',

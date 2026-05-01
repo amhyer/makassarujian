@@ -15,9 +15,42 @@ class Exam extends Model
     protected $casts = [
         'shuffle_questions' => 'boolean',
         'shuffle_options' => 'boolean',
+        'is_template' => 'boolean',
         'start_at' => 'datetime',
         'end_at' => 'datetime',
     ];
+
+    /**
+     * Scope a query to only include templates.
+     */
+    public function scopeTemplate($query)
+    {
+        return $query->where('is_template', true);
+    }
+
+    /**
+     * Scope a query to exclude templates.
+     */
+    public function scopeNotTemplate($query)
+    {
+        return $query->where('is_template', false);
+    }
+
+    /**
+     * Relationship to the original template if this exam was copied.
+     */
+    public function originalTemplate()
+    {
+        return $this->belongsTo(Exam::class, 'copied_from_id');
+    }
+
+    /**
+     * Relationship to all copies made from this template.
+     */
+    public function copies()
+    {
+        return $this->hasMany(Exam::class, 'copied_from_id');
+    }
 
     /**
      * Relationship to Subject.
@@ -56,6 +89,14 @@ class Exam extends Model
         }
 
         return $questions;
+    }
+
+    /**
+     * Relationship to ExamParticipant
+     */
+    public function participants()
+    {
+        return $this->hasMany(ExamParticipant::class);
     }
 
     /**

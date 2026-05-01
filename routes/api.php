@@ -26,12 +26,12 @@ Route::middleware(['auth', 'App\Http\Middleware\IdentifyTenant'])->group(functio
     Route::apiResource('questions', QuestionController::class);
 
     // Exam Session & Timer
-    Route::get('/exam/server-time', [\App\Http\Controllers\Api\ExamSessionController::class, 'serverTime']);
-    Route::get('/exam/session', [\App\Http\Controllers\Api\ExamSessionController::class, 'timer'])->middleware('throttle:exam-api');
-    Route::post('/exam/start', [\App\Http\Controllers\Api\ExamSessionController::class, 'start'])->middleware('throttle:exam-api');
+    Route::get('/exam/server-time', [\App\Http\Controllers\Api\ExamSessionController::class, 'serverTime'])->name('api.exam.server-time');
+    Route::get('/exam/session', [\App\Http\Controllers\Api\ExamSessionController::class, 'timer'])->middleware('throttle:exam-api')->name('api.exam.session');
+    Route::post('/exam/start', [\App\Http\Controllers\Api\ExamSessionController::class, 'start'])->middleware('throttle:exam-api')->name('api.exam.start');
     Route::post('/exam/submit', [\App\Http\Controllers\Api\ExamSessionController::class, 'submit'])
-        ->middleware(['throttle:exam-api', 'idempotent:attempt_id,idempotent:']);
-    Route::post('/exam/save-answer', [\App\Http\Controllers\Api\ExamSessionController::class, 'saveAnswer'])->middleware('throttle:exam-autosave');
+        ->middleware(['throttle:exam-api', 'idempotent:attempt_id,idempotent:'])->name('api.exam.submit');
+    Route::post('/exam/save-answer', [\App\Http\Controllers\Api\ExamSessionController::class, 'saveAnswer'])->middleware('throttle:exam-autosave')->name('api.exam.save-answer');
     Route::post('/exam/report-tab-switch', [\App\Http\Controllers\Api\ExamSessionController::class, 'reportTabSwitch'])->middleware('throttle:exam-autosave');
     Route::post('/exam/cheat-log', [\App\Http\Controllers\Api\ExamSessionController::class, 'logCheat'])->middleware('throttle:exam-api');
     

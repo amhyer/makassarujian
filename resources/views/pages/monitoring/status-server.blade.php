@@ -17,107 +17,109 @@
         </div>
     </div>
 
-    <!-- Table Section -->
-    <div class="bg-white shadow-sm ring-1 ring-slate-900/5 sm:rounded-xl p-6">
-        <div class="sm:flex sm:items-center">
-            <div class="sm:flex-auto">
-                <div class="relative max-w-sm">
-                    <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                        <svg class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
+    <!-- Metrics Grid -->
+    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+        <div class="bg-white overflow-hidden shadow-sm rounded-lg ring-1 ring-slate-900/5">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <svg class="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H6.75A2.25 2.25 0 0 0 4.5 6.75v10.5a2.25 2.25 0 0 0 2.25 2.25Z" />
                         </svg>
                     </div>
-                    <input type="text" class="block w-full rounded-md border-0 py-1.5 pl-10 text-slate-900 ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6" placeholder="Cari data...">
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-slate-500 truncate">CPU Load</dt>
+                            <dd class="flex items-baseline">
+                                <div class="text-2xl font-semibold text-slate-900">{{ number_format($metrics['cpu'], 2) }}</div>
+                            </dd>
+                        </dl>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="mt-8 flow-root">
+
+        <div class="bg-white overflow-hidden shadow-sm rounded-lg ring-1 ring-slate-900/5">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <svg class="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+                        </svg>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-slate-500 truncate">Redis Memory</dt>
+                            <dd class="flex items-baseline">
+                                <div class="text-2xl font-semibold text-slate-900">{{ $metrics['redis_memory'] }}</div>
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white overflow-hidden shadow-sm rounded-lg ring-1 ring-slate-900/5">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <svg class="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
+                        </svg>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-slate-500 truncate">Queue Jobs</dt>
+                            <dd class="flex items-baseline">
+                                <div class="text-2xl font-semibold text-slate-900">{{ $metrics['queue_jobs'] }}</div>
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Services Table -->
+    <div class="bg-white shadow-sm ring-1 ring-slate-900/5 sm:rounded-xl p-6">
+        <h3 class="text-base font-semibold leading-6 text-slate-900 mb-4">Service Status</h3>
+        <div class="mt-4 flow-root">
             <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
                 <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
                     <table class="min-w-full divide-y divide-slate-300">
                         <thead>
                             <tr>
-                                <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-slate-900 sm:pl-0">ID / Kode</th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Deskripsi Utama</th>
+                                <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-slate-900 sm:pl-0">Layanan</th>
                                 <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Status</th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Tanggal Diperbarui</th>
-                                <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-0">
-                                    <span class="sr-only">Aksi</span>
-                                </th>
+                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Latency</th>
+                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Uptime</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-200">
+                            @foreach ($services as $service)
                             <tr>
-                                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-0">DAT-001</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">Data Contoh 1</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
-                                    <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Aktif</span>
+                                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-0">
+                                    {{ $service['name'] }}
                                 </td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">24 Apr 2026</td>
-                                <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-0">
-                                    <a href="#" class="text-indigo-600 hover:text-indigo-900">Edit</a>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
+                                    @if($service['status'] === 'up')
+                                        <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Up / Online</span>
+                                    @else
+                                        <span class="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/20">Down / Offline</span>
+                                    @endif
+                                </td>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
+                                    {{ $service['latency'] }}
+                                </td>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
+                                    {{ $service['uptime'] }}
                                 </td>
                             </tr>
-                            <tr>
-                                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-0">DAT-002</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">Data Contoh 2</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
-                                    <span class="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20">Pending</span>
-                                </td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">23 Apr 2026</td>
-                                <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-0">
-                                    <a href="#" class="text-indigo-600 hover:text-indigo-900">Edit</a>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-0">DAT-003</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">Data Contoh 3</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
-                                    <span class="inline-flex items-center rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-500/10">Draft</span>
-                                </td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">22 Apr 2026</td>
-                                <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-0">
-                                    <a href="#" class="text-indigo-600 hover:text-indigo-900">Edit</a>
-                                </td>
-                            </tr>
+                            @endforeach
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
-        <!-- Pagination Mockup -->
-        <div class="mt-4 flex items-center justify-between border-t border-slate-200 pt-4">
-            <div class="flex flex-1 justify-between sm:hidden">
-                <a href="#" class="relative inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Previous</a>
-                <a href="#" class="relative ml-3 inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Next</a>
-            </div>
-            <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                <div>
-                    <p class="text-sm text-slate-700">
-                        Menampilkan <span class="font-medium">1</span> sampai <span class="font-medium">3</span> dari <span class="font-medium">12</span> data
-                    </p>
-                </div>
-                <div>
-                    <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-                        <a href="#" class="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">
-                            <span class="sr-only">Previous</span>
-                            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" />
-                            </svg>
-                        </a>
-                        <a href="#" aria-current="page" class="relative z-10 inline-flex items-center bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">1</a>
-                        <a href="#" class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">2</a>
-                        <a href="#" class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">3</a>
-                        <a href="#" class="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">
-                            <span class="sr-only">Next</span>
-                            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
-                            </svg>
-                        </a>
-                    </nav>
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
 @endsection

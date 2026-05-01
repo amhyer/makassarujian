@@ -140,6 +140,59 @@ class DashboardService
     }
 
     /**
+     * Get aggregate statistics for a student dashboard.
+     */
+    public function getStudentMetrics(string $tenantId, string $userId)
+    {
+        $cacheKey = "dashboard:student:{$tenantId}:{$userId}";
+
+        return Cache::store('redis')->remember($cacheKey, 30, function () use ($tenantId, $userId) {
+            // Ujian yang aktif / tersedia untuk dikerjakan (berdasarkan ExamParticipant)
+            // yang Exam-nya sedang aktif (start_at <= now <= end_at)
+            $availableExams = \App\Models\Exam::where('tenant_id', $tenantId)
+                ->whereHas('participants', function($query) use ($userId) {
+                    $query->where('user_id', $userId);
+                })
+                ->where(function($query) {
+                    $now = now();
+                    $query->whereNull('start_at')
+                          ->orWhere('start_at', '<=', $now);
+                })
+                ->where(function($query) {
+                    $now = now();
+                    $query->whereNull('end_at')
+                          ->orWhere('end_at', '>=', $now);
+                })
+                ->with(['subject'])
+                ->get();
+
+            // Attempt yang sedang berjalan (ongoing)
+            $ongoingAttempts = \App\Models\Attempt::where('tenant_id', $tenantId)
+                ->where('user_id', $userId)
+                ->where('status', 'ongoing')
+                ->with(['exam.subject'])
+                ->get();
+
+            // Attempt yang sudah selesai (completed)
+            $completedAttempts = \App\Models\Attempt::where('tenant_id', $tenantId)
+                ->where('user_id', $userId)
+                ->where('status', 'completed')
+                ->count();
+
+            return [
+                'available_exams' => $availableExams,
+                'ongoing_attempts' => $ongoingAttempts,
+                'stats' => [
+                    'total_available' => $availableExams->count(),
+                    'ongoing' => $ongoingAttempts->count(),
+                    'completed' => $completedAttempts
+                ],
+                'last_updated' => now()->toDateTimeString()
+            ];
+        });
+    }
+
+    /**
      * Clear dashboard cache for a specific exam.
      */
     public function invalidateCache(string $tenantId, string $examId)
