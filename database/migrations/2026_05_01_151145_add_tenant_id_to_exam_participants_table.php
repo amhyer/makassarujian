@@ -12,7 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('exam_participants', function (Blueprint $table) {
-            $table->foreignUuid('tenant_id')->nullable()->constrained('tenants')->cascadeOnDelete();
+            if (!Schema::hasColumn('exam_participants', 'tenant_id')) {
+                $table->uuid('tenant_id')->nullable()->after('id');
+                $table->foreign('tenant_id')->references('id')->on('tenants')->onDelete('cascade');
+            }
         });
     }
 

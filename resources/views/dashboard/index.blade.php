@@ -1,7 +1,47 @@
 @extends('layouts.app')
 
 @section('content')
-    <div class="space-y-6 pb-8">
+    @php
+        // Fetching Real Data with Fallback if Table Doesn't Exist yet
+        try {
+            $totalTenants = \App\Models\Tenant::count();
+            $activeExamsCount = \App\Models\Attempt::withoutGlobalScope('tenant')->where('status', 'ongoing')->count();
+            $totalUsers = \App\Models\User::count();
+            $todayAttempts = \App\Models\Attempt::withoutGlobalScope('tenant')->whereDate('created_at', \Carbon\Carbon::today())->count();
+
+            // Real data for 7-day ApexChart
+            $chartLabels = [];
+            $chartSeries = [];
+            for ($i = 6; $i >= 0; $i--) {
+                $date = \Carbon\Carbon::now()->subDays($i);
+                $chartLabels[] = $date->translatedFormat('d M');
+                $chartSeries[] = \App\Models\Attempt::withoutGlobalScope('tenant')->whereDate('created_at', $date->toDateString())->count();
+            }
+        } catch (\Exception $e) {
+            // Fallback just in case migrations are not run
+            $totalTenants = 0; $activeExamsCount = 0; $totalUsers = 0; $todayAttempts = 0;
+            $chartLabels = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+            $chartSeries = [0, 0, 0, 0, 0, 0, 0];
+        }
+    @endphp
+    <div class="dashboard-page" x-data="{ periods: ['Hari ini', 'Minggu ini', 'Bulan ini'], activePeriod: 'Bulan ini' }">
+        <div class="dashboard-header">
+            <div>
+                <h2 class="dashboard-title">Executive Dashboard</h2>
+                <p class="dashboard-subtitle">Ringkasan metrik utama untuk pemantauan performa harian platform.</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <template x-for="period in periods" :key="period">
+                    <button
+                        type="button"
+                        @click="activePeriod = period"
+                        class="dashboard-filter"
+                        :class="activePeriod === period && 'dashboard-filter-active'"
+                        x-text="period"
+                    ></button>
+                </template>
+            </div>
+        </div>
         <!-- Top Row: 4 Info Boxes -->
         <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
             <!-- CPU Traffic -->
@@ -14,8 +54,9 @@
                     </svg>
                 </div>
                 <div>
-                    <p class="text-sm font-medium text-slate-500">CPU Traffic</p>
+                        <p class="text-sm font-medium text-slate-500">CPU Traffic</p>
                     <p class="text-2xl font-bold text-slate-900">10 <span class="text-base font-medium">%</span></p>
+                        <p class="mt-1 text-xs text-emerald-600 font-semibold">+2.1% vs kemarin</p>
                 </div>
             </div>
             <!-- Likes -->
@@ -27,8 +68,9 @@
                     </svg>
                 </div>
                 <div>
-                    <p class="text-sm font-medium text-slate-500">Likes</p>
+                        <p class="text-sm font-medium text-slate-500">Likes</p>
                     <p class="text-2xl font-bold text-slate-900">41,410</p>
+                        <p class="mt-1 text-xs text-emerald-600 font-semibold">+4.8% pertumbuhan</p>
                 </div>
             </div>
             <!-- Sales -->
@@ -40,8 +82,9 @@
                     </svg>
                 </div>
                 <div>
-                    <p class="text-sm font-medium text-slate-500">Sales</p>
+                        <p class="text-sm font-medium text-slate-500">Sales</p>
                     <p class="text-2xl font-bold text-slate-900">760</p>
+                        <p class="mt-1 text-xs text-sky-600 font-semibold">Target 82% tercapai</p>
                 </div>
             </div>
             <!-- New Members -->
@@ -53,8 +96,9 @@
                     </svg>
                 </div>
                 <div>
-                    <p class="text-sm font-medium text-slate-500">New Members</p>
+                        <p class="text-sm font-medium text-slate-500">New Members</p>
                     <p class="text-2xl font-bold text-slate-900">2,000</p>
+                        <p class="mt-1 text-xs text-emerald-600 font-semibold">+120 member minggu ini</p>
                 </div>
             </div>
         </div>
@@ -463,16 +507,49 @@
                 chart: { height: 250, type: 'area', toolbar: { show: false } },
                 legend: { show: false },
                 colors: ['#4f46e5', '#10b981'],
+            // Real Data injected from Blade
+            const chartLabels = @json($chartLabels);
+            const chartSeries = @json($chartSeries);
+
+            const area_chart_options = {
+                series: [{
+                    name: 'Peserta Ujian',
+                    data: chartSeries
+                }],
+                chart: { 
+                    height: 250, 
+                    type: 'area', 
+                    fontFamily: 'inherit',
+                    toolbar: { show: false } 
+                },
+                colors: ['#4f46e5'],
                 dataLabels: { enabled: false },
                 stroke: { curve: 'smooth' },
+                fill: {
+                    type: 'gradient',
+                    gradient: {
+                        shadeIntensity: 1,
+                        opacityFrom: 0.4,
+                        opacityTo: 0.05,
+                        stops: [0, 90, 100]
+                    }
+                },
                 xaxis: {
                     type: 'datetime',
                     categories: ['2023-01-01', '2023-02-01', '2023-03-01', '2023-04-01', '2023-05-01', '2023-06-01', '2023-07-01'],
+                    categories: chartLabels,
+                    labels: { style: { colors: '#64748b' } },
+                    axisBorder: { show: false }
                 },
                 tooltip: { x: { format: 'MMMM yyyy' } },
+                yaxis: {
+                    labels: { style: { colors: '#64748b' } },
+                },
             };
             const sales_chart = new ApexCharts(document.querySelector('#sales-chart'), sales_chart_options);
             sales_chart.render();
+            const area_chart = new ApexCharts(document.querySelector('#peserta-chart'), area_chart_options);
+            area_chart.render();
 
             const pie_chart_options = {
                 series: [700, 500, 400, 600, 300, 100],

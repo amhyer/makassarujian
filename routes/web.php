@@ -24,11 +24,13 @@ Route::post('/webhook/payment', [WebhookController::class, 'handle'])
     ->middleware('idempotent:order_id|id,idempotent:payment:')
     ->name('webhook.payment');
 
-// ─── GUEST ────────────────────────────────────────────────────────────────
+// ─── GUEST ──────────────────────────────────────────────────────────
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [LoginController::class, 'login']);
-    Route::view('/register', 'auth.register')->name('register');
+    // Registrasi wajib invite code — GET menampilkan form, POST memproses
+    Route::get('/register',  [\App\Http\Controllers\Auth\RegisterController::class, 'create'])->name('register');
+    Route::post('/register', [\App\Http\Controllers\Auth\RegisterController::class, 'store']);
     Route::view('/forgot-password', 'auth.forgot-password')->name('password.request');
     Route::view('/reset-password', 'auth.reset-password')->name('password.reset');
 });
@@ -92,7 +94,9 @@ Route::middleware(['auth', 'App\\Http\\Middleware\\IdentifyTenant'])->group(func
     // ─── BILLING ─────────────────────────────────────────────────────────
     Route::prefix('billing')->name('billing.')->group(function () {
         Route::get('/plans', [PlanController::class, 'index'])->name('plans');
-        Route::post('/plans', [PlanController::class, 'store'])->middleware('role:Super Admin');
+        Route::post('/plans', [PlanController::class, 'store'])->name('plans.store')->middleware('role:Super Admin');
+        Route::put('/plans/{plan}', [PlanController::class, 'update'])->name('plans.update')->middleware('role:Super Admin');
+        Route::delete('/plans/{plan}', [PlanController::class, 'destroy'])->name('plans.destroy')->middleware('role:Super Admin');
         Route::patch('/plans/{plan}/toggle', [PlanController::class, 'toggleActive'])->name('plans.toggle')->middleware('role:Super Admin');
 
         Route::get('/invoices', [InvoiceController::class, 'index'])->name('invoices');
@@ -119,8 +123,19 @@ Route::middleware(['auth', 'App\\Http\\Middleware\\IdentifyTenant'])->group(func
         Route::resource('questions', \App\Http\Controllers\QuestionController::class);
         Route::post('questions/upload', [\App\Http\Controllers\QuestionController::class, 'uploadImage'])->name('questions.upload');
         Route::view('/bank-soal', 'pages.ujian.bank-soal')->name('ujian.bank-soal');
-        Route::get('/distribusi', [SuperAdminPageController::class, 'distribusi'])->name('ujian.distribusi');
+        Route::get('/distribusi', [\App\Http\Controllers\ExamParticipantController::class, 'index'])->name('ujian.distribusi');
+        Route::post('/{exam}/peserta', [\App\Http\Controllers\ExamParticipantController::class, 'store'])->name('ujian.peserta.store');
         Route::get('/template',   [SuperAdminPageController::class, 'template'])->name('ujian.template');
+    });
+
+    // --- REPORTING ---
+    Route::get('/monitoring/exam/{exam}/proctor', function(\App\Models\Exam $exam) {
+        return view('pages.monitoring.proctor-realtime', compact('exam'));
+    })->name('monitoring.exam.proctor');
+
+    Route::prefix('reporting')->name('reporting.')->group(function () {
+        Route::get('/exam/{exam}/excel', [\App\Http\Controllers\ExamReportController::class, 'exportExcel'])->name('exam.excel');
+        Route::get('/exam/{exam}/pdf',   [\App\Http\Controllers\ExamReportController::class, 'exportPdf'])->name('exam.pdf');
     });
 
     // ─── MONITORING ──────────────────────────────────────────────────────
@@ -136,10 +151,18 @@ Route::middleware(['auth', 'App\\Http\\Middleware\\IdentifyTenant'])->group(func
     Route::get('/exam/session', [\App\Http\Controllers\Api\ExamSessionController::class, 'timer'])->name('api.exam.session');
     Route::post('/exam/submit', [\App\Http\Controllers\Api\ExamSessionController::class, 'submit'])->name('api.exam.submit');
 
-    // ─── USER MANAGEMENT ─────────────────────────────────────────────────
+    // ─── USER MANAGEMENT ────────────────────────────────────────
     Route::prefix('user-management')->name('user-management.')->group(function () {
         Route::get('/admin-sekolah', [SuperAdminPageController::class, 'adminSekolah'])->name('admin-sekolah');
         Route::get('/admin-fkgg',    [SuperAdminPageController::class, 'adminFkgg'])->name('admin-fkgg');
+    });
+
+    // ─── INVITE CODES (School Admin) ────────────────────────────────
+    Route::prefix('invite-codes')->name('invite-codes.')->middleware('role:School Admin')->group(function () {
+        Route::get('/',                                              [\App\Http\Controllers\InviteCodeController::class, 'index'])->name('index');
+        Route::post('/',                                             [\App\Http\Controllers\InviteCodeController::class, 'store'])->name('store');
+        Route::patch('/{inviteCode}/deactivate',                    [\App\Http\Controllers\InviteCodeController::class, 'deactivate'])->name('deactivate');
+        Route::patch('/{inviteCode}/activate',                      [\App\Http\Controllers\InviteCodeController::class, 'activate'])->name('activate');
     });
 
     // ─── SISTEM ──────────────────────────────────────────────────────────

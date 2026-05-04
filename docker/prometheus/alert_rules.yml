@@ -1,63 +1,243 @@
 groups:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # GROUP 1: Queue & Worker Health
+  # Metric sources: QueueDelayCollector, QueueSizeCollector (spatie/prometheus)
+  # Prefix "laravel_" ditambahkan otomatis oleh spatie/laravel-prometheus
+  # ─────────────────────────────────────────────────────────────────────────────
+  - name: Queue_Health
+    rules:
+      # [WARNING] Queue wait time > 5 detik — Horizon mulai overwhelmed
+      - alert: HighQueueDelay
+        expr: laravel_queue_delay_seconds > 5
+        for: 2m
+        labels:
+          severity: warning
+          domain: queue
+        annotations:
+          summary: "Queue delay tinggi ({{ $value | humanizeDuration }})"
+          description: >
+            Worker Horizon sedang kewalahan. Queue wait time sudah
+            {{ $value | humanizeDuration }}, melebihi batas 5 detik.
+            Tambah worker atau periksa jobs yang macet.
+          runbook: "https://wiki.internal/runbooks/queue-delay"
+
+      # [CRITICAL] Queue wait time > 30 detik — SLA siswa terpengaruh
+      - alert: CriticalQueueDelay
+        expr: laravel_queue_delay_seconds > 30
+        for: 1m
+        labels:
+          severity: critical
+          domain: queue
+        annotations:
+          summary: "CRITICAL: Queue delay sangat tinggi ({{ $value | humanizeDuration }})"
+          description: >
+            Queue delay KRITIS: {{ $value | humanizeDuration }}. Jawaban siswa
+            mungkin tidak tersimpan ke DB tepat waktu. Periksa Horizon,
+            skala worker segera, atau aktifkan Safe Mode.
+          runbook: "https://wiki.internal/runbooks/queue-delay"
+
+      # [CRITICAL] Queue size > 10k AND throughput < 10 jobs/min — Queue stuck
+      - alert: QueueStuck
+        expr: laravel_queue_size > 10000 and rate(laravel_queue_throughput[5m]) < 10
+        for: 5m
+        labels:
+          severity: critical
+          domain: queue
+        annotations:
+          summary: "Queue stuck: {{ $value }} jobs menunggu, throughput hampir nol"
+          description: >
+            Ada {{ $value }} jobs di queue tapi throughput turun di bawah 10
+            jobs/min. Worker mungkin crash atau semua job gagal (endless retry).
+          runbook: "https://wiki.internal/runbooks/queue-stuck"
+
+      # [WARNING] Queue size > 1000 — backlog mulai menumpuk
+      - alert: QueueBacklogBuilding
+        expr: laravel_queue_size > 1000
+        for: 3m
+        labels:
+          severity: warning
+          domain: queue
+        annotations:
+          summary: "Queue backlog: {{ $value }} jobs menunggu"
+          description: >
+            Jumlah jobs di queue ({{ $value }}) melebihi 1.000 selama 3 menit.
+            Monitor apakah terus naik; tambah worker jika diperlukan.
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # GROUP 2: Exam Session Health
+  # Metric sources: ActiveExamSessionsCollector
+  # ─────────────────────────────────────────────────────────────────────────────
+  - name: Exam_Session_Health
+    rules:
+      # [CRITICAL] Tidak ada sesi aktif saat jam ujian (deteksi dead worker/server)
+      # Hanya berlaku antara 06:00-20:00 WIB (UTC+8 = UTC 22:00-12:00)
+      - alert: NoActiveExamSessions
+        expr: laravel_active_exam_sessions == 0 and (hour() >= 22 or hour() < 12)
+        for: 10m
+        labels:
+          severity: warning
+          domain: exam
+        annotations:
+          summary: "Tidak ada sesi ujian aktif selama 10 menit pada jam sekolah"
+          description: >
+            Tidak terdeteksi sesi ujian aktif selama 10 menit pada jam operasional
+            (06:00-20:00 WIB). Mungkin normal (tidak ada ujian dijadwalkan),
+            atau tanda server/queue tidak berfungsi. Verifikasi manual.
+
+      # [CRITICAL] Lonjakan sesi aktif melebihi kapasitas yang direncanakan
+      - alert: ExamSessionSurge
+        expr: laravel_active_exam_sessions > 5000
+        for: 2m
+        labels:
+          severity: critical
+          domain: exam
+        annotations:
+          summary: "Lonjakan sesi ujian: {{ $value }} sesi aktif"
+          description: >
+            Jumlah sesi ujian aktif ({{ $value }}) melebihi 5.000.
+            Periksa kapasitas Redis, DB connection pool, dan queue worker.
+            Aktifkan Safe Mode jika queue backlog ikut melonjak.
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # GROUP 3: Redis ↔ DB Sync Health (NEW — dari RedisSyncLagCollector)
+  # Metric sources: RedisSyncLagCollector
+  # ─────────────────────────────────────────────────────────────────────────────
+  - name: Redis_Sync_Health
+    rules:
+      # [WARNING] Data lag > 2 menit — sync job mulai tertinggal
+      - alert: RedisSyncLagWarning
+        expr: laravel_exam_attempt_sync_lag_seconds > 120
+        for: 1m
+        labels:
+          severity: warning
+          domain: redis_sync
+        annotations:
+          summary: "Lag Redis-DB: {{ $value | humanizeDuration }}"
+          description: >
+            Ada jawaban siswa di Redis yang sudah {{ $value | humanizeDuration }}
+            belum tersimpan ke database. SyncRedisAnswers job mungkin tertinggal.
+            Tidak ada data loss selama Redis masih hidup.
+
+      # [CRITICAL] Data lag > 5 menit — risiko kehilangan data jika Redis crash
+      - alert: RedisSyncLagCritical
+        expr: laravel_exam_attempt_sync_lag_seconds > 300
+        for: 1m
+        labels:
+          severity: critical
+          domain: redis_sync
+        annotations:
+          summary: "CRITICAL: Redis lag {{ $value | humanizeDuration }} — risiko data loss!"
+          description: >
+            Jawaban siswa tertua di Redis sudah {{ $value | humanizeDuration }}
+            belum di-persist ke database. Jika Redis crash sekarang, data
+            AKAN HILANG. Periksa SyncRedisAnswers job segera.
+          runbook: "https://wiki.internal/runbooks/redis-sync-lag"
+
+      # [WARNING] Terlalu banyak dirty attempts — queue sync ketinggalan
+      - alert: RedisDirtyAttemptsHigh
+        expr: laravel_exam_attempts_dirty_total > 500
+        for: 2m
+        labels:
+          severity: warning
+          domain: redis_sync
+        annotations:
+          summary: "{{ $value }} attempts belum di-sync ke database"
+          description: >
+            Ada {{ $value }} attempt dengan jawaban di Redis yang belum
+            tersimpan ke database. Normalnya ini < 100. Periksa throughput
+            job SyncRedisAnswers.
+
+      # [CRITICAL] Dirty attempts sangat banyak — potensi data loss masif
+      - alert: RedisDirtyAttemptsCritical
+        expr: laravel_exam_attempts_dirty_total > 2000
+        for: 1m
+        labels:
+          severity: critical
+          domain: redis_sync
+        annotations:
+          summary: "CRITICAL: {{ $value }} attempts terancam hilang jika Redis crash"
+          description: >
+            Ada {{ $value }} attempt yang jawaban siswanya HANYA ADA DI REDIS.
+            Jika Redis crash atau restart sekarang, semua data ini hilang.
+            Aktifkan Safe Mode dan skala worker sync segera.
+          runbook: "https://wiki.internal/runbooks/redis-dirty-critical"
+
+      # [CRITICAL] Sync job tidak jalan lebih dari 3 menit
+      - alert: RedisSyncJobStalled
+        expr: laravel_exam_sync_last_success_age_seconds > 180
+        for: 1m
+        labels:
+          severity: critical
+          domain: redis_sync
+        annotations:
+          summary: "Job sync Redis→DB tidak jalan selama {{ $value | humanizeDuration }}"
+          description: >
+            Job SyncRedisAnswersToDatabase tidak berhasil dijalankan dalam
+            {{ $value | humanizeDuration }}. Seharusnya berjalan setiap menit.
+            Periksa Horizon, queue worker, dan log error.
+          runbook: "https://wiki.internal/runbooks/redis-sync-stalled"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # GROUP 4: HTTP & Latency (sudah ada, dipertahankan + enhanced)
+  # ─────────────────────────────────────────────────────────────────────────────
   - name: SRE_Smart_Alerts
     rules:
-      # 1. High Latency: p95 > 2 seconds
+      # p95 latency > 2 detik
       - alert: HighHttpLatency
         expr: histogram_quantile(0.95, sum(rate(app_request_duration_seconds_bucket[5m])) by (le, route)) > 2
         for: 2m
         labels:
           severity: warning
+          domain: http
         annotations:
           summary: "High Latency on {{ $labels.route }}"
-          description: "The 95th percentile of request latency for {{ $labels.route }} is greater than 2 seconds (currently {{ $value }}s) for the last 2 minutes."
+          description: >
+            P95 latency pada route {{ $labels.route }} adalah {{ $value }}s
+            (threshold: 2s) selama 2 menit terakhir.
 
-      # 2. Redis Saturation: ops/sec high + memory/latency climbing
+      # Redis saturation: ops tinggi + memory > 80%
       - alert: RedisSaturation
-        # Assuming high ops (>5000/s) AND high memory usage as a proxy for saturation/latency
         expr: rate(redis_commands_processed_total[1m]) > 5000 and (redis_memory_used_bytes / redis_memory_max_bytes) > 0.8
         for: 1m
         labels:
           severity: critical
+          domain: redis
         annotations:
           summary: "Redis Saturation Detected"
-          description: "Redis operations are very high (>5000 ops/sec) and memory is over 80% capacity, risking latency spikes."
+          description: >
+            Redis: ops/sec > 5.000 DAN memory > 80%. Risiko latency spike
+            dan OOM eviction yang bisa menghilangkan jawaban siswa.
 
-      # 3. Queue Stuck: jobs > 10k AND throughput dropping
-      - alert: QueueStuck
-        expr: app_queue_size > 10000 and rate(app_queue_throughput[5m]) < 10
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Background Queue Stuck"
-          description: "Queue size is critical ({{ $value }} jobs) and throughput has dropped below 10 jobs/min."
-
-      # 4. Autosave Failure: retry rate (500 errors) high
+      # Autosave endpoint error rate tinggi
       - alert: AutosaveFailure
         expr: sum(rate(app_request_duration_seconds_count{route="api/exam/save-answer", status=~"5.."}[5m])) > 5
         for: 1m
         labels:
           severity: critical
+          domain: exam
         annotations:
           summary: "Autosave endpoint failing"
-          description: "High error rate (retries failing) detected on the autosave endpoint. Score calculation may be delayed or failing."
+          description: >
+            Error rate tinggi pada endpoint autosave (>5 errors/5min).
+            Jawaban siswa mungkin tidak tersimpan ke Redis.
 
-      # 5. Redis Sync Health: Dirty > 5000
+      # Legacy redis sync metrics (dari RedisSyncCollector lama)
       - alert: RedisSyncHighDirtyCount
         expr: app_redis_dirty_count > 5000
         for: 1m
         labels:
           severity: critical
+          domain: redis_sync
         annotations:
-          summary: "Massive Unsynced Exam Answers"
-          description: "There are currently {{ $value }} dirty exam attempts waiting to be synced to the database. Risk of data loss."
+          summary: "Massive Unsynced Exam Answers (legacy metric)"
+          description: "{{ $value }} dirty attempts via legacy metric."
 
-      # 6. Redis Sync Health: Delay > 60s
       - alert: RedisSyncHighDelay
         expr: app_sync_delay_seconds > 60
         for: 1m
         labels:
           severity: critical
+          domain: redis_sync
         annotations:
-          summary: "Redis Sync is Stuck or Delayed"
-          description: "The Redis-DB synchronization has been delayed for {{ $value }} seconds. Queue jobs might be stuck."
+          summary: "Redis Sync Delayed (legacy metric)"
+          description: "Redis-DB sync delay {{ $value }}s via legacy metric."

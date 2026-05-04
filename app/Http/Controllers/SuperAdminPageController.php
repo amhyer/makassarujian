@@ -216,6 +216,16 @@ class SuperAdminPageController extends Controller
         ]);
     }
 
+    public function storeRole(\Illuminate\Http\Request $request)
+    {
+        $request->validate(['name' => 'required|string|max:255|unique:roles,name']);
+
+        Role::create(['name' => $request->name, 'guard_name' => 'web']);
+
+        return redirect()->route('superadmin.sistem.role-permission')
+            ->with('success', "Role '{$request->name}' berhasil ditambahkan.");
+    }
+
     public function auditLog(): View
     {
         $logs = AuditLog::with(['user', 'tenant'])

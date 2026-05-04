@@ -4,9 +4,25 @@ namespace App\Services;
 
 use App\Models\Attempt;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Redis;
 
 class DashboardService
 {
+    protected function redisCacheStore(): string
+    {
+        try {
+            Redis::connection()->ping();
+            return 'redis';
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('DashboardService Redis cache fallback active', [
+                'error' => $e->getMessage(),
+            ]);
+
+            $defaultStore = (string) config('cache.default', 'database');
+            return $defaultStore === 'redis' ? 'database' : $defaultStore;
+        }
+    }
+
     /**
      * Get aggregate statistics for an exam dashboard.
      * Strategy: Fast Redis cache with 15s TTL.
@@ -90,7 +106,7 @@ class DashboardService
             ];
         }
 
-        return Cache::store('redis')->remember($cacheKey, 15, function () use ($cacheKey, $breakerKey, $tenantId, $examId) {
+        return Cache::store($this->redisCacheStore())->remember($cacheKey, 15, function () use ($cacheKey, $breakerKey, $tenantId, $examId) {
             return Cache::lock("lock:{$cacheKey}", 5)->block(3, function () use ($tenantId, $examId, $breakerKey) {
                 try {
                     $stats = Attempt::selectRaw("
@@ -146,7 +162,7 @@ class DashboardService
     {
         $cacheKey = "dashboard:student:{$tenantId}:{$userId}";
 
-        return Cache::store('redis')->remember($cacheKey, 30, function () use ($tenantId, $userId) {
+        return Cache::store($this->redisCacheStore())->remember($cacheKey, 30, function () use ($tenantId, $userId) {
             // Ujian yang aktif / tersedia untuk dikerjakan (berdasarkan ExamParticipant)
             // yang Exam-nya sedang aktif (start_at <= now <= end_at)
             $availableExams = \App\Models\Exam::where('tenant_id', $tenantId)
@@ -174,14 +190,20 @@ class DashboardService
                 ->get();
 
             // Attempt yang sudah selesai (completed)
-            $completedAttempts = \App\Models\Attempt::where('tenant_id', $tenantId)
+            $completedAttemptsQuery = \App\Models\Attempt::where('tenant_id', $tenantId)
                 ->where('user_id', $userId)
-                ->where('status', 'completed')
-                ->count();
+                ->where('status', 'completed');
+            
+            $completedAttempts = $completedAttemptsQuery->count();
+
+            $scoreHistory = $completedAttemptsQuery->with('exam:id,title')
+                ->orderBy('created_at', 'asc')
+                ->get(['id', 'exam_id', 'score', 'created_at']);
 
             return [
                 'available_exams' => $availableExams,
                 'ongoing_attempts' => $ongoingAttempts,
+                'score_history' => $scoreHistory,
                 'stats' => [
                     'total_available' => $availableExams->count(),
                     'ongoing' => $ongoingAttempts->count(),
@@ -197,6 +219,6 @@ class DashboardService
      */
     public function invalidateCache(string $tenantId, string $examId)
     {
-        Cache::store('redis')->forget("dashboard:{$tenantId}:exam:{$examId}");
+        Cache::store($this->redisCacheStore())->forget("dashboard:{$tenantId}:exam:{$examId}");
     }
 }

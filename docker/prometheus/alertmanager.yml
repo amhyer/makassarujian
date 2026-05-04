@@ -1,31 +1,128 @@
 route:
-  group_by: ['alertname', 'severity', 'route']
+  group_by: ['alertname', 'severity', 'domain']
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 1h
-  receiver: 'telegram-critical'
-  
+  receiver: 'telegram-warning'   # Default: semua alert ke channel warning
+
   routes:
+    # DISASTER → Panggilan telepon langsung (Level 3)
+    - matchers:
+        - severity="disaster"
+      receiver: 'phone-call-escalation'
+      group_wait: 0s              # Langsung telpon
+      repeat_interval: 15m        # Telepon terus tiap 15 menit sampai diangkat
+      continue: true              # Tetap kirim WA dan Telegram
+
+    # CRITICAL → WA (Level 2 - eskalasi jika 5 menit belum selesai)
+    - matchers:
+        - severity="critical"
+      receiver: 'whatsapp-escalation'
+      group_wait: 5m              # Tunggu 5 menit, jika masih firing, kirim WA
+      repeat_interval: 30m
+      continue: true              # Tetap kirim Telegram
+      
+    # CRITICAL → Telegram Ops Team (Level 1)
     - matchers:
         - severity="critical"
       receiver: 'telegram-critical'
-      continue: true
+      group_wait: 10s
+      repeat_interval: 30m
+      continue: false             # Berhenti di sini — tidak diteruskan ke default
+
+    # WARNING → channel warning (notifikasi biasa)
+    - matchers:
+        - severity="warning"
+      receiver: 'telegram-warning'
+      group_wait: 30s
+      repeat_interval: 2h         # Lebih jarang repeat untuk warning
+      continue: false
+
+    # Domain redis_sync → selalu kirim ke channel dedicated (semua severity)
+    - matchers:
+        - domain="redis_sync"
+      receiver: 'telegram-critical'
+      continue: true              # Juga teruskan ke route severity di atas
+
+inhibit_rules:
+  # Jika CriticalQueueDelay firing, suppress HighQueueDelay (sama domain)
+  - source_matchers:
+      - alertname="CriticalQueueDelay"
+    target_matchers:
+      - alertname="HighQueueDelay"
+    equal: ['domain']
+
+  # Jika RedisSyncLagCritical firing, suppress RedisSyncLagWarning
+  - source_matchers:
+      - alertname="RedisSyncLagCritical"
+    target_matchers:
+      - alertname="RedisSyncLagWarning"
+    equal: ['domain']
+
+  # Jika RedisDirtyAttemptsCritical firing, suppress RedisDirtyAttemptsHigh
+  - source_matchers:
+      - alertname="RedisDirtyAttemptsCritical"
+    target_matchers:
+      - alertname="RedisDirtyAttemptsHigh"
+    equal: ['domain']
+
+  # Jika QueueStuck firing, suppress QueueBacklogBuilding
+  - source_matchers:
+      - alertname="QueueStuck"
+    target_matchers:
+      - alertname="QueueBacklogBuilding"
+    equal: ['domain']
 
 receivers:
+  # ── CRITICAL: Channel ops team — wajib response cepat ──────────────────────
   - name: 'telegram-critical'
     telegram_configs:
-      - bot_token: '${TELEGRAM_BOT_TOKEN}' # Must be set in environment or replaced
+      - bot_token: '${TELEGRAM_BOT_TOKEN}'
         chat_id: ${TELEGRAM_CHAT_ID}
         api_url: 'https://api.telegram.org'
         parse_mode: 'HTML'
         message: |-
-          {{ if eq .Status "firing" }}🚨 <b>CRITICAL ALERT</b> 🚨{{ else }}✅ <b>RESOLVED</b>✅{{ end }}
+          {{ if eq .Status "firing" }}🚨 <b>CRITICAL ALERT</b> 🚨{{ else }}✅ <b>RESOLVED</b> ✅{{ end }}
+
           <b>Alert:</b> {{ .GroupLabels.alertname }}
-          <b>Severity:</b> {{ .GroupLabels.severity }}
+          <b>Domain:</b> {{ .GroupLabels.domain | toUpper }}
+          <b>Severity:</b> {{ .GroupLabels.severity | toUpper }}
+          <b>Status:</b> {{ .Status }}
+
           {{ range .Alerts }}
           <b>Summary:</b> {{ .Annotations.summary }}
-          <b>Description:</b> {{ .Annotations.description }}
-          <b>Details:</b>
-          {{ range $key, $value := .Labels }} - {{ $key }}: {{ $value }}
+          <b>Detail:</b> {{ .Annotations.description }}
+          {{ if .Annotations.runbook }}<b>Runbook:</b> {{ .Annotations.runbook }}{{ end }}
+          <b>Fired at:</b> {{ .StartsAt.Format "2006-01-02 15:04:05 WIB" }}
           {{ end }}
+
+  # ── WARNING: Channel monitoring — informational (Level 1) ──────────────────
+  - name: 'telegram-warning'
+    telegram_configs:
+      - bot_token: '${TELEGRAM_BOT_TOKEN}'
+        chat_id: ${TELEGRAM_WARNING_CHAT_ID:-${TELEGRAM_CHAT_ID}}
+        api_url: 'https://api.telegram.org'
+        parse_mode: 'HTML'
+        message: |-
+          {{ if eq .Status "firing" }}⚠️ <b>WARNING</b>{{ else }}✅ <b>RESOLVED</b>{{ end }}
+
+          <b>Alert:</b> {{ .GroupLabels.alertname }}
+          <b>Domain:</b> {{ .GroupLabels.domain }}
+
+          {{ range .Alerts }}
+          <b>Summary:</b> {{ .Annotations.summary }}
+          <b>Detail:</b> {{ .Annotations.description }}
+          <b>Fired at:</b> {{ .StartsAt.Format "2006-01-02 15:04:05" }}
           {{ end }}
+
+  # ── ESCALATION LEVEL 2: WhatsApp (Placeholder Webhook) ───────────────────────
+  - name: 'whatsapp-escalation'
+    webhook_configs:
+      - url: '${WHATSAPP_WEBHOOK_URL:-http://localhost:8000/api/webhook/whatsapp}'
+        send_resolved: true
+
+  # ── ESCALATION LEVEL 3: Phone Call (Placeholder Webhook) ─────────────────────
+  - name: 'phone-call-escalation'
+    webhook_configs:
+      - url: '${PHONE_CALL_WEBHOOK_URL:-http://localhost:8000/api/webhook/phone-call}'
+        send_resolved: false # Jangan telepon kalau cuma resolved

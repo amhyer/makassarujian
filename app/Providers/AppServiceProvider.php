@@ -25,7 +25,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->configureLocalRedisFallback();
     }
 
     /**
@@ -59,7 +59,54 @@ class AppServiceProvider extends ServiceProvider
             \App\Prometheus\Collectors\ActiveExamSessionsCollector::class,
             \App\Prometheus\Collectors\QueueDelayCollector::class,
             \App\Prometheus\Collectors\QueueSizeCollector::class,
-            \App\Prometheus\Collectors\RedisSyncCollector::class,
+            \App\Prometheus\Collectors\RedisSyncCollector::class,       // Legacy — sync_delay_seconds, redis_dirty_count
+            \App\Prometheus\Collectors\RedisSyncLagCollector::class,    // NEW — exam_attempt_sync_lag_seconds, exam_attempts_dirty_total
+        ]);
+    }
+
+    /**
+     * Prevent local development from crashing when Redis is not running.
+     */
+    protected function configureLocalRedisFallback(): void
+    {
+        if (!$this->app->environment('local')) {
+            return;
+        }
+
+        $cacheDriver = (string) config('cache.default', 'database');
+        $sessionDriver = (string) config('session.driver', 'database');
+        $queueDriver = (string) config('queue.default', 'database');
+
+        $needsRedis = in_array($cacheDriver, ['redis'], true)
+            || in_array($sessionDriver, ['redis'], true)
+            || in_array($queueDriver, ['redis'], true);
+
+        if (!$needsRedis) {
+            return;
+        }
+
+        $host = (string) config('database.redis.default.host', '127.0.0.1');
+        $port = (int) config('database.redis.default.port', 6379);
+
+        $socket = @fsockopen($host, $port, $errno, $errstr, 0.25);
+        if (is_resource($socket)) {
+            fclose($socket);
+            return;
+        }
+
+        config([
+            'cache.default' => 'database',
+            'cache.limiter' => 'database',
+            'session.driver' => 'database',
+            'session.store' => null,
+            'queue.default' => 'database',
+        ]);
+
+        logger()->warning('Redis unavailable in local env, switched to database fallback.', [
+            'redis_host' => $host,
+            'redis_port' => $port,
+            'errno' => $errno ?? null,
+            'error' => $errstr ?? null,
         ]);
     }
 }

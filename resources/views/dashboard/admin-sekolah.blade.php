@@ -1,11 +1,23 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="space-y-6 pb-8" x-data="dashboardAdminSekolah()" x-init="initChart()">
-    <!-- Header -->
-    <div class="flex justify-between items-center">
-        <h2 class="text-2xl font-bold text-slate-800">Dashboard Admin Sekolah</h2>
-        <div class="text-sm text-slate-500">Periode: {{ now()->format('F Y') }}</div>
+<div class="dashboard-page" x-data="dashboardAdminSekolah()" x-init="initChart()">
+    <div class="dashboard-header">
+        <div>
+            <h2 class="dashboard-title">Dashboard Admin Sekolah</h2>
+            <p class="dashboard-subtitle">Pantau siswa, ujian aktif, dan performa sekolah secara cepat.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <template x-for="period in periods" :key="period">
+                <button
+                    type="button"
+                    @click="activePeriod = period"
+                    class="dashboard-filter"
+                    :class="activePeriod === period && 'dashboard-filter-active'"
+                    x-text="period"
+                ></button>
+            </template>
+        </div>
     </div>
 
     <!-- 4 Info Boxes -->
@@ -13,6 +25,8 @@
         <x-dashboard.stat-card 
             title="Total Siswa" 
             value="{{ $metrics['total_siswa'] }}" 
+            subtitle="Seluruh akun siswa terdaftar"
+            trend="+8%"
             icon='<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>'
             color="indigo"
         />
@@ -20,6 +34,8 @@
         <x-dashboard.stat-card 
             title="Ujian Aktif" 
             value="{{ $metrics['ujian_aktif'] }}" 
+            subtitle="Ujian berjalan saat ini"
+            trend="+3"
             icon='<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>'
             color="emerald"
         />
@@ -27,6 +43,8 @@
         <x-dashboard.stat-card 
             title="Sisa Kuota Siswa" 
             value="{{ $metrics['sisa_kuota'] }}" 
+            subtitle="Dapat ditambahkan kapan saja"
+            trend="Aman"
             icon='<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>'
             color="amber"
         />
@@ -34,6 +52,8 @@
         <x-dashboard.stat-card 
             title="Rata-rata Nilai" 
             value="{{ $metrics['rata_nilai'] }}" 
+            subtitle="Rata-rata seluruh ujian"
+            trend="+5.2"
             icon='<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>'
             color="rose"
         />
@@ -84,6 +104,8 @@
 <script>
     function dashboardAdminSekolah() {
         return {
+            periods: ['Minggu ini', 'Bulan ini', 'Semester ini'],
+            activePeriod: 'Bulan ini',
             initChart() {
                 // Simulate lazy loading / API fetch delay
                 setTimeout(() => {

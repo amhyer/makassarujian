@@ -30,10 +30,17 @@ Route::middleware(['auth', 'App\Http\Middleware\IdentifyTenant'])->group(functio
     Route::get('/exam/session', [\App\Http\Controllers\Api\ExamSessionController::class, 'timer'])->middleware('throttle:exam-api')->name('api.exam.session');
     Route::post('/exam/start', [\App\Http\Controllers\Api\ExamSessionController::class, 'start'])->middleware('throttle:exam-api')->name('api.exam.start');
     Route::post('/exam/submit', [\App\Http\Controllers\Api\ExamSessionController::class, 'submit'])
-        ->middleware(['throttle:exam-api', 'idempotent:attempt_id,idempotent:'])->name('api.exam.submit');
-    Route::post('/exam/save-answer', [\App\Http\Controllers\Api\ExamSessionController::class, 'saveAnswer'])->middleware('throttle:exam-autosave')->name('api.exam.save-answer');
-    Route::post('/exam/report-tab-switch', [\App\Http\Controllers\Api\ExamSessionController::class, 'reportTabSwitch'])->middleware('throttle:exam-autosave');
-    Route::post('/exam/cheat-log', [\App\Http\Controllers\Api\ExamSessionController::class, 'logCheat'])->middleware('throttle:exam-api');
+        ->middleware(['throttle:exam-api', 'idempotent:attempt_id,idempotent:', 'exam.session'])->name('api.exam.submit');
+    Route::post('/exam/save-answer', [\App\Http\Controllers\Api\ExamSessionController::class, 'saveAnswer'])->middleware(['throttle:exam-autosave', 'exam.session'])->name('api.exam.save-answer');
+    Route::post('/exam/report-tab-switch', [\App\Http\Controllers\Api\ExamSessionController::class, 'reportTabSwitch'])->middleware(['throttle:exam-autosave', 'exam.session']);
+    Route::post('/exam/cheat-log', [\App\Http\Controllers\Api\ExamSessionController::class, 'logCheat'])->middleware('throttle:30,1');
+    
+    // ─── PANIC MODE (Admin Emergency Control) ──────────────────────────────
+    Route::prefix('panic')->name('panic.')->group(function () {
+        Route::get('/status',      [\App\Http\Controllers\Api\PanicController::class, 'status'])->name('status');
+        Route::post('/activate',   [\App\Http\Controllers\Api\PanicController::class, 'activate'])->middleware('throttle:3,1')->name('activate');
+        Route::post('/deactivate', [\App\Http\Controllers\Api\PanicController::class, 'deactivate'])->name('deactivate');
+    });
     
     // Proctor Dashboard
     Route::get('/proctor/exam/{examId}/stats', [\App\Http\Controllers\Dashboard\ProctorController::class, 'getStats']);

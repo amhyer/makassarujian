@@ -1,14 +1,23 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="py-6">
+<div class="py-6" x-data="{ periods: ['7 Hari', '30 Hari', '90 Hari'], activePeriod: '30 Hari' }">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between items-center mb-8">
+        <div class="dashboard-header mb-8">
             <div>
-                <h1 class="text-2xl font-bold text-slate-900">Revenue Dashboard</h1>
-                <p class="text-slate-500 text-sm">Real-time SaaS Business Intelligence</p>
+                <h1 class="dashboard-title">Revenue Dashboard</h1>
+                <p class="dashboard-subtitle">Real-time SaaS business intelligence dan performa finansial tenant.</p>
             </div>
-            <div class="flex gap-2">
+            <div class="flex flex-wrap gap-2">
+                <template x-for="period in periods" :key="period">
+                    <button
+                        type="button"
+                        @click="activePeriod = period"
+                        class="dashboard-filter"
+                        :class="activePeriod === period && 'dashboard-filter-active'"
+                        x-text="period"
+                    ></button>
+                </template>
                 <button onclick="window.location.reload()" class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                     Refresh
@@ -21,22 +30,34 @@
             <x-dashboard.stat-card 
                 title="MRR" 
                 :value="'Rp ' . number_format($metrics['mrr'], 0, ',', '.')" 
+                subtitle="Pendapatan berulang bulanan"
+                trend="+4.8%"
                 icon='<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
+                color="indigo"
             />
             <x-dashboard.stat-card 
                 title="ARR" 
                 :value="'Rp ' . number_format($metrics['arr'], 0, ',', '.')" 
+                subtitle="Proyeksi tahunan"
+                trend="+9.1%"
                 icon='<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>'
+                color="emerald"
             />
             <x-dashboard.stat-card 
                 title="Total Revenue" 
                 :value="'Rp ' . number_format($metrics['total_revenue'], 0, ',', '.')" 
+                subtitle="Akumulasi sepanjang waktu"
+                trend="+12%"
                 icon='<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
+                color="sky"
             />
             <x-dashboard.stat-card 
                 title="Pending Payment" 
                 :value="'Rp ' . number_format($metrics['pending_revenue'], 0, ',', '.')" 
+                subtitle="Perlu follow-up billing"
+                trend="Perhatian"
                 icon='<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
+                color="amber"
             />
         </div>
 
@@ -45,7 +66,7 @@
             <div class="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
                 <div class="flex items-center justify-between mb-6">
                     <h2 class="text-lg font-bold text-slate-900">Revenue (30 Hari Terakhir)</h2>
-                    <span class="text-xs font-medium text-slate-400">Aggregated Daily</span>
+                    <span class="text-xs font-medium text-slate-400" x-text="'Aggregated ' + activePeriod"></span>
                 </div>
                 <div class="h-80">
                     <canvas id="revenueChart"></canvas>

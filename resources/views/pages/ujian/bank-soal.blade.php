@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@@section('content')
+@section('content')
 <div id="app" class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
     <div class="md:flex md:items-center md:justify-between mb-6">
         <div class="min-w-0 flex-1">

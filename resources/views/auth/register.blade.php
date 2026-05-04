@@ -77,6 +77,12 @@ document.addEventListener('alpine:init', () => {
                     </div>
                 @endif
 
+                {{-- Banner info kode undangan --}}
+                <div class="mb-4 rounded-lg bg-indigo-50 border border-indigo-200 p-3 flex gap-2 text-sm text-indigo-700">
+                    <svg class="w-4 h-4 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"/></svg>
+                    <span>Pendaftaran memerlukan <strong>kode undangan</strong> dari admin sekolah Anda.</span>
+                </div>
+
                 <div class="space-y-4 mb-5">
                     <div class="relative flex items-center">
                         <div class="w-full relative">
@@ -121,6 +127,41 @@ document.addEventListener('alpine:init', () => {
                             </svg>
                         </button>
                     </div>
+
+                    <div class="relative" x-data="{ showPassword: false }">
+                        <input id="registerPasswordConfirmation" name="password_confirmation" :type="showPassword ? 'text' : 'password'" required
+                            class="peer w-full rounded-md border border-slate-300 px-3 pr-10 pb-2 pt-6 text-sm text-slate-900 focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600 transition-colors placeholder-transparent"
+                            placeholder="Konfirmasi Kata Sandi" />
+                        <label for="registerPasswordConfirmation" class="absolute left-3 top-2 text-xs text-slate-500 transition-all peer-placeholder-shown:top-[14px] peer-placeholder-shown:text-sm peer-focus:top-2 peer-focus:text-xs peer-focus:text-indigo-600">Konfirmasi Kata Sandi</label>
+                        <button type="button" @click="showPassword = !showPassword" class="absolute inset-y-0 right-0 flex items-center pr-3">
+                            <svg x-show="!showPassword" class="w-5 h-5 text-slate-400 hover:text-slate-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                            </svg>
+                            <svg x-show="showPassword" style="display:none;" class="w-5 h-5 text-slate-400 hover:text-slate-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+                            </svg>
+                        </button>
+                    </div>
+                    {{-- Kode Undangan --}}
+                    <div>
+                        <div class="relative flex items-center">
+                            <div class="w-full relative">
+                                <input id="inviteCode" name="invite_code" type="text"
+                                    value="{{ old('invite_code', $inviteCode ?? '') }}"
+                                    maxlength="8"
+                                    class="peer w-full rounded-l-md rounded-r-none border border-r-0 {{ $errors->has('invite_code') ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-slate-300 focus:border-indigo-600 focus:ring-indigo-600' }} px-3 pb-2 pt-6 text-sm text-slate-900 uppercase tracking-widest focus:outline-none focus:ring-1 transition-colors placeholder-transparent"
+                                    placeholder="Kode Undangan" />
+                                <label for="inviteCode" class="absolute left-3 top-2 text-xs text-slate-500 transition-all peer-placeholder-shown:top-[14px] peer-placeholder-shown:text-sm peer-focus:top-2 peer-focus:text-xs peer-focus:text-indigo-600">Kode Undangan</label>
+                            </div>
+                            <div class="flex items-center justify-center w-11 h-[50px] border border-l-0 {{ $errors->has('invite_code') ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-slate-50' }} rounded-r-md">
+                                <svg class="w-4 h-4 {{ $errors->has('invite_code') ? 'text-red-400' : 'text-slate-500' }}" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd"/></svg>
+                            </div>
+                        </div>
+                        @error('invite_code')
+                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
                 </div>
 
                 <div class="flex items-center justify-between mb-5">
@@ -143,20 +184,6 @@ document.addEventListener('alpine:init', () => {
                     </div>
                 </div>
             </form>
-
-            <div class="mt-4 text-center">
-                <p class="text-[15px] text-slate-500 mb-3">- ATAU -</p>
-                <div class="space-y-2">
-                    <button type="button" class="w-full flex items-center justify-center gap-2 rounded bg-[#3b5998] px-4 py-2 text-[15px] font-semibold text-white hover:bg-[#324b80] transition-colors shadow-sm">
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" clip-rule="evenodd"></path></svg>
-                        Daftar menggunakan Facebook
-                    </button>
-                    <button type="button" class="w-full flex items-center justify-center gap-2 rounded bg-[#df4a32] px-4 py-2 text-[15px] font-semibold text-white hover:bg-[#c9412b] transition-colors shadow-sm">
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" /></svg>
-                        Daftar menggunakan Google+
-                    </button>
-                </div>
-            </div>
 
             <div class="mt-4 flex flex-col space-y-1 text-[15px] text-center">
                 <a href="{{ route('login') }}" class="text-indigo-600 hover:text-indigo-800 transition-colors mt-2">Saya sudah memiliki keanggotaan</a>

@@ -1,122 +1,145 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+<div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8" x-data="{ showAddRoleModal: false, newRoleName: '', assigningRole: null }">
     <div class="md:flex md:items-center md:justify-between mb-6">
         <div class="min-w-0 flex-1">
             <h2 class="text-2xl font-bold leading-7 text-slate-900 sm:truncate sm:text-3xl sm:tracking-tight">Role & Permission</h2>
-            <p class="mt-1 text-sm text-slate-500">Kelola hak akses dan wewenang pengguna.</p>
+            <p class="mt-1 text-sm text-slate-500">Kelola hak akses dan wewenang setiap peran di sistem menggunakan Spatie Permission.</p>
         </div>
         <div class="mt-4 flex md:ml-4 md:mt-0">
-            <button type="button" class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50">
-                Ekspor
-            </button>
-            <button type="button" class="ml-3 inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
-                Tambah Data
+            <button @click="showAddRoleModal = true" class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+                + Tambah Role
             </button>
         </div>
     </div>
 
-    <!-- Table Section -->
-    <div class="bg-white shadow-sm ring-1 ring-slate-900/5 sm:rounded-xl p-6">
-        <div class="sm:flex sm:items-center">
-            <div class="sm:flex-auto">
-                <div class="relative max-w-sm">
-                    <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                        <svg class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
-                        </svg>
+    @if(session('success'))
+        <div class="mb-4 rounded-md bg-green-50 p-4 ring-1 ring-green-200">
+            <p class="text-sm font-medium text-green-800">{{ session('success') }}</p>
+        </div>
+    @endif
+
+    {{-- Roles Table --}}
+    <div class="bg-white shadow-sm ring-1 ring-slate-900/5 sm:rounded-xl overflow-hidden mb-8">
+        <div class="px-6 py-4 border-b border-slate-200">
+            <h3 class="text-base font-semibold text-slate-900">Daftar Role</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-300">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th scope="col" class="py-3.5 pl-6 pr-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Nama Role</th>
+                        <th scope="col" class="px-3 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Guard</th>
+                        <th scope="col" class="px-3 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Permissions</th>
+                        <th scope="col" class="px-3 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Jumlah Permission</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200 bg-white">
+                    @forelse ($roles as $role)
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="whitespace-nowrap py-4 pl-6 pr-3 text-sm font-semibold text-slate-900">
+                            @php
+                                $roleColors = [
+                                    'Super Admin' => 'bg-purple-100 text-purple-800',
+                                    'School Admin' => 'bg-blue-100 text-blue-800',
+                                    'Student' => 'bg-green-100 text-green-800',
+                                    'FKKG Admin' => 'bg-orange-100 text-orange-800',
+                                    'Proctor' => 'bg-yellow-100 text-yellow-800',
+                                ];
+                                $roleColor = $roleColors[$role->name] ?? 'bg-slate-100 text-slate-800';
+                            @endphp
+                            <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold {{ $roleColor }}">
+                                {{ $role->name }}
+                            </span>
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500 font-mono text-xs">
+                            {{ $role->guard_name }}
+                        </td>
+                        <td class="px-3 py-4 text-sm text-slate-500 max-w-xs">
+                            <div class="flex flex-wrap gap-1">
+                                @forelse($role->permissions->take(5) as $perm)
+                                    <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-slate-100 text-slate-600">
+                                        {{ $perm->name }}
+                                    </span>
+                                @empty
+                                    <span class="text-slate-400 italic text-xs">Tidak ada permission</span>
+                                @endforelse
+                                @if($role->permissions->count() > 5)
+                                    <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-600">
+                                        +{{ $role->permissions->count() - 5 }} lagi
+                                    </span>
+                                @endif
+                            </div>
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-4 text-sm">
+                            <span class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
+                                {{ $role->permissions->count() }}
+                            </span>
+                        </td>
+                    </tr>
+                    @empty
+                    <tr>
+                        <td colspan="4" class="py-12 text-center text-sm text-slate-500">
+                            Belum ada role yang dikonfigurasi. Jalankan seeder terlebih dahulu.
+                        </td>
+                    </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {{-- Permissions by Group --}}
+    <div class="bg-white shadow-sm ring-1 ring-slate-900/5 sm:rounded-xl overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-200">
+            <h3 class="text-base font-semibold text-slate-900">Daftar Permission (dikelompokkan)</h3>
+        </div>
+        <div class="p-6 space-y-6">
+            @forelse ($permissions as $group => $perms)
+            <div>
+                <h4 class="text-sm font-semibold text-slate-700 uppercase tracking-wider mb-3 border-b border-slate-100 pb-2">
+                    {{ ucfirst($group) }}
+                </h4>
+                <div class="flex flex-wrap gap-2">
+                    @foreach($perms as $permission)
+                        <span class="inline-flex items-center rounded-md bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-700/10">
+                            {{ $permission->name }}
+                        </span>
+                    @endforeach
+                </div>
+            </div>
+            @empty
+            <div class="py-8 text-center text-sm text-slate-500">
+                <p>Belum ada permission yang terdaftar.</p>
+                <p class="mt-1 text-xs text-slate-400">Jalankan <code class="bg-slate-100 px-1 py-0.5 rounded">php artisan db:seed --class=RoleAndPermissionSeeder</code></p>
+            </div>
+            @endforelse
+        </div>
+    </div>
+
+    {{-- Add Role Modal --}}
+    <div x-show="showAddRoleModal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="flex min-h-screen items-center justify-center p-4">
+            <div @click.outside="showAddRoleModal = false" class="w-full max-w-md bg-white rounded-xl shadow-2xl ring-1 ring-slate-900/10 p-6">
+                <h3 class="text-lg font-semibold text-slate-900 mb-4">Tambah Role Baru</h3>
+                <form action="{{ route('sistem.role-permission.store') }}" method="POST">
+                    @csrf
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Nama Role</label>
+                        <input type="text" name="name" x-model="newRoleName" placeholder="Contoh: Proctor" class="block w-full rounded-md border-0 py-1.5 text-slate-900 ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-indigo-600 sm:text-sm" required>
                     </div>
-                    <input type="text" class="block w-full rounded-md border-0 py-1.5 pl-10 text-slate-900 ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6" placeholder="Cari data...">
-                </div>
+                    <div class="flex justify-end gap-3">
+                        <button type="button" @click="showAddRoleModal = false" class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">
+                            Batal
+                        </button>
+                        <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
+                            Simpan Role
+                        </button>
+                    </div>
+                </form>
             </div>
-        </div>
-        <div class="mt-8 flow-root">
-            <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-                <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
-                    <table class="min-w-full divide-y divide-slate-300">
-                        <thead>
-                            <tr>
-                                <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-slate-900 sm:pl-0">ID / Kode</th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Deskripsi Utama</th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Status</th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Tanggal Diperbarui</th>
-                                <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-0">
-                                    <span class="sr-only">Aksi</span>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-200">
-                            <tr>
-                                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-0">DAT-001</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">Data Contoh 1</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
-                                    <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Aktif</span>
-                                </td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">24 Apr 2026</td>
-                                <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-0">
-                                    <a href="#" class="text-indigo-600 hover:text-indigo-900">Edit</a>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-0">DAT-002</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">Data Contoh 2</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
-                                    <span class="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20">Pending</span>
-                                </td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">23 Apr 2026</td>
-                                <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-0">
-                                    <a href="#" class="text-indigo-600 hover:text-indigo-900">Edit</a>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-0">DAT-003</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">Data Contoh 3</td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
-                                    <span class="inline-flex items-center rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-500/10">Draft</span>
-                                </td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">22 Apr 2026</td>
-                                <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-0">
-                                    <a href="#" class="text-indigo-600 hover:text-indigo-900">Edit</a>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-        <!-- Pagination Mockup -->
-        <div class="mt-4 flex items-center justify-between border-t border-slate-200 pt-4">
-            <div class="flex flex-1 justify-between sm:hidden">
-                <a href="#" class="relative inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Previous</a>
-                <a href="#" class="relative ml-3 inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Next</a>
-            </div>
-            <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                <div>
-                    <p class="text-sm text-slate-700">
-                        Menampilkan <span class="font-medium">1</span> sampai <span class="font-medium">3</span> dari <span class="font-medium">12</span> data
-                    </p>
-                </div>
-                <div>
-                    <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-                        <a href="#" class="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">
-                            <span class="sr-only">Previous</span>
-                            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" />
-                            </svg>
-                        </a>
-                        <a href="#" aria-current="page" class="relative z-10 inline-flex items-center bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">1</a>
-                        <a href="#" class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">2</a>
-                        <a href="#" class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">3</a>
-                        <a href="#" class="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">
-                            <span class="sr-only">Next</span>
-                            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
-                            </svg>
-                        </a>
-                    </nav>
-                </div>
-            </div>
+            <div class="fixed inset-0 bg-slate-900/50 -z-10"></div>
         </div>
     </div>
 </div>

@@ -8,23 +8,46 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 
-<body class="h-full font-sans antialiased text-slate-900"
+<body class="h-full font-sans antialiased text-slate-900 bg-[radial-gradient(circle_at_top_right,_rgba(79,70,229,0.08),_transparent_42%),radial-gradient(circle_at_bottom_left,_rgba(14,165,233,0.06),_transparent_38%)]"
     x-data="{
         sidebarOpen: false,
         desktopSidebarOpen: true,
+        isGlobalLoading: false,
+        loadingText: 'Memproses data...',
         toasts: [],
         addToast(msg, type = 'success') {
             const id = Date.now();
             this.toasts.push({ id, msg, type });
             setTimeout(() => this.removeToast(id), 4500);
         },
+        setGlobalLoading(state, text = null) {
+            this.isGlobalLoading = state;
+            if (text) this.loadingText = text;
+        },
         removeToast(id) { this.toasts = this.toasts.filter(t => t.id !== id); }
     }"
     x-init="
         @if(session('success')) addToast(@js(session('success')), 'success'); @endif
         @if(session('error'))   addToast(@js(session('error')), 'error'); @endif
+        window.addEventListener('app:loading', (event) => {
+            const state = !!event.detail?.state;
+            const text = event.detail?.message ?? null;
+            setGlobalLoading(state, text);
+        });
+        window.addEventListener('load', () => setGlobalLoading(false));
     "
 >
+    <div
+        x-show="isGlobalLoading"
+        x-transition.opacity
+        class="app-loading-overlay"
+        style="display: none;"
+    >
+        <div class="app-loading-card">
+            <span class="app-loading-spinner" aria-hidden="true"></span>
+            <p class="app-loading-text" x-text="loadingText"></p>
+        </div>
+    </div>
 
     <!-- Mobile sidebar backdrop -->
     <div x-show="sidebarOpen" class="relative z-50 lg:hidden" role="dialog" aria-modal="true" style="display: none;">
@@ -107,7 +130,11 @@
             <div class="h-6 w-px bg-slate-200 lg:hidden" aria-hidden="true"></div>
 
             <div class="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
-                <div class="flex flex-1"></div>
+                <div class="hidden lg:flex flex-1 items-center">
+                    <div class="rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-xs text-slate-500">
+                        {{ now()->translatedFormat('l, d F Y') }}
+                    </div>
+                </div>
                 <div class="flex items-center gap-x-4 lg:gap-x-6">
 
                     <!-- Profile dropdown -->
@@ -179,7 +206,7 @@
         </div>
         @endif
 
-        <main class="py-10 flex-1 overflow-auto">
+        <main class="py-8 lg:py-10 flex-1 overflow-auto">
             @if(isset($tenant_status) && $tenant_status === 'expired')
             <div class="rounded-md bg-red-50 p-4 mb-6 mx-4 sm:mx-6 lg:mx-8">
                 <div class="flex">
@@ -227,6 +254,8 @@
             </div>
         </template>
     </div>
+
+    @stack('scripts')
 
 </body>
 

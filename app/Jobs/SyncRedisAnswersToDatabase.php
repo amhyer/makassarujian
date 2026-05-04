@@ -52,6 +52,10 @@ class SyncRedisAnswersToDatabase implements ShouldQueue
                             'last_synced_at' => now()
                         ]);
 
+                        // Hapus dirty_since setelah sync berhasil — data sudah aman di DB.
+                        // Collector tidak akan melaporkan lag untuk attempt ini lagi.
+                        $redis->del("attempt:{$attemptId}:dirty_since");
+
                         // Calculate progress for batch broadcast
                         $totalQuestions = $redis->get("exam:{$attempt->exam_id}:total_questions") ?: 1;
                         $progress = round((count($answers) / $totalQuestions) * 100);

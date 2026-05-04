@@ -98,3 +98,17 @@ Schedule::command('exam:flush-audit-buffers')
     ->everyThirtySeconds()
     ->withoutOverlapping()
     ->runInBackground();
+
+// ─── Exam Engine: Auto-submit expired attempts (every minute) ────────────
+// Server-side safety net for students who lost connection or their device
+// died before they could submit manually. ForceSubmitAttempt is dispatched
+// per-attempt and is individually retriable + idempotent.
+Schedule::job(new \App\Jobs\AutoSubmitExpiredAttempts)
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->name('auto-submit-expired-attempts');
+
+// ─── Data Governance: Archive old data (daily) ──────────────────────────
+Schedule::job(new \App\Jobs\ArchiveOldData)->daily()->name('archive-old-data');
+
+

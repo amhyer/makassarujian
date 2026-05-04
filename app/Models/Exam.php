@@ -117,4 +117,45 @@ class Exam extends Model
 
         return $questions;
     }
+
+    // ─── Guard Helpers (dipakai di ExamSessionController@start) ──────────
+
+    /**
+     * Apakah ujian sudah dipublikasikan dan siap diikuti?
+     * Draft / archived tidak boleh diakses siswa.
+     */
+    public function isPublished(): bool
+    {
+        return $this->status === 'published';
+    }
+
+    /**
+     * Apakah saat ini masih dalam jendela waktu ujian?
+     * Jika start_at / end_at NULL → tidak ada batasan jadwal (open).
+     */
+    public function isWithinSchedule(): bool
+    {
+        $now = now();
+
+        if ($this->start_at && $now->lessThan($this->start_at)) {
+            return false; // Belum dimulai
+        }
+
+        if ($this->end_at && $now->greaterThan($this->end_at)) {
+            return false; // Sudah berakhir
+        }
+
+        return true;
+    }
+
+    /**
+     * Apakah user tertentu terdaftar sebagai peserta ujian ini?
+     * Memeriksa tabel exam_participants — wajib ada sebelum bisa mulai.
+     */
+    public function hasParticipant(string $userId): bool
+    {
+        return $this->participants()
+            ->where('user_id', $userId)
+            ->exists();
+    }
 }

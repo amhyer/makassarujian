@@ -1,10 +1,16 @@
 global:
-  scrape_interval: 15s
+  scrape_interval:     15s   # Seberapa sering scrape metrics
+  evaluation_interval: 15s   # Seberapa sering evaluate alert rules
+  external_labels:
+    app: 'makassar-ujian'
+    environment: 'production'
 
+# Rule files — Prometheus load semua ini saat startup
 rule_files:
   - "alert_rules.yml"
   - "recording_rules.yml"
 
+# Alertmanager endpoint
 alerting:
   alertmanagers:
     - static_configs:
@@ -12,12 +18,31 @@ alerting:
             - 'alertmanager:9093'
 
 scrape_configs:
+  # ── Laravel App (spatie/laravel-prometheus) ──────────────────────────────
   - job_name: 'laravel'
     metrics_path: '/prometheus'
     bearer_token: 'secret-prometheus-token'
+    scrape_interval: 15s
     static_configs:
       - targets: ['laravel.test:80']
+        labels:
+          service: 'laravel-app'
 
+  # ── Laravel Horizon (built-in /horizon/api/metrics endpoint) ────────────
+  # Horizon tidak expose Prometheus format secara native — metrics diambil
+  # dari spatie collector (QueueDelayCollector, QueueSizeCollector) via /prometheus.
+  # Job ini adalah placeholder jika di masa depan ada horizon-exporter sidecar.
+  # Hapus jika tidak digunakan.
+  # - job_name: 'horizon'
+  #   metrics_path: '/horizon/api/metrics'
+  #   bearer_token: 'secret-prometheus-token'
+  #   static_configs:
+  #     - targets: ['laravel.test:80']
+
+  # ── Redis Exporter (oliver006/redis_exporter) ────────────────────────────
   - job_name: 'redis'
+    scrape_interval: 15s
     static_configs:
       - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'

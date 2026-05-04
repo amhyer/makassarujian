@@ -28,6 +28,33 @@ groups:
         for: 5m
         labels:
           severity: critical
+          domain: slo
         annotations:
           summary: "Fast Error Budget Burn Detected"
           description: "The system is consuming the error budget at 10x the allowed rate for the 99.9% SLO. Current error rate: {{ $value }}."
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Queue-derived recording rules — pre-compute untuk alert yang lebih efisien
+  # ─────────────────────────────────────────────────────────────────────────────
+  - name: Queue_Recording_Rules
+    rules:
+      # Queue throughput per menit (moving average)
+      - record: job:queue_throughput:rate5m
+        expr: rate(laravel_queue_throughput[5m])
+
+      # Autosave error rate per menit
+      - record: job:autosave_errors:rate5m
+        expr: sum(rate(app_request_duration_seconds_count{route="api/exam/save-answer", status=~"5.."}[5m]))
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Redis Sync recording rules — pre-compute untuk dashboard Grafana
+  # ─────────────────────────────────────────────────────────────────────────────
+  - name: Redis_Sync_Recording_Rules
+    rules:
+      # Max lag dalam 5 menit terakhir (untuk Grafana)
+      - record: job:redis_sync_lag:max5m
+        expr: max_over_time(laravel_exam_attempt_sync_lag_seconds[5m])
+
+      # Rata-rata dirty attempts dalam 1 menit (untuk trend)
+      - record: job:redis_dirty_attempts:avg1m
+        expr: avg_over_time(laravel_exam_attempts_dirty_total[1m])

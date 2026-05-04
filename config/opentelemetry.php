@@ -11,7 +11,7 @@ return [
     /**
      * When set to true, Opentelemetry SDK will be disabled
      */
-    'disabled' => env(Variables::OTEL_SDK_DISABLED, false),
+    'disabled' => env(Variables::OTEL_SDK_DISABLED, env('APP_ENV', 'production') === 'local'),
 
     /**
      * Service name
@@ -52,7 +52,7 @@ return [
          * This should be the key of one of the exporters defined in the exporters section
          * Supported drivers: "otlp", "console", "memory", "null"
          */
-        'exporter' => env(Variables::OTEL_METRICS_EXPORTER, 'otlp'),
+        'exporter' => env(Variables::OTEL_METRICS_EXPORTER, env('APP_ENV', 'production') === 'local' ? 'null' : 'otlp'),
     ],
 
     /**
@@ -64,7 +64,7 @@ return [
          * This should be the key of one of the exporters defined in the exporters section
          * Supported drivers: "otlp", "zipkin", "console", "memory", "null"
          */
-        'exporter' => env(Variables::OTEL_TRACES_EXPORTER, 'otlp'),
+        'exporter' => env(Variables::OTEL_TRACES_EXPORTER, env('APP_ENV', 'production') === 'local' ? 'null' : 'otlp'),
 
         /**
          * Traces sampler
@@ -121,7 +121,7 @@ return [
          * This should be the key of one of the exporters defined in the exporters section
          * Supported drivers: "otlp", "console", "memory", "null"
          */
-        'exporter' => env(Variables::OTEL_LOGS_EXPORTER, 'otlp'),
+        'exporter' => env(Variables::OTEL_LOGS_EXPORTER, env('APP_ENV', 'production') === 'local' ? 'null' : 'otlp'),
 
         /**
          * Inject active trace id in log context

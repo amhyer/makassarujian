@@ -10,6 +10,8 @@ use App\Services\SafeModeService;
 use App\Services\SafeModeAnswerService;
 use App\Services\ExamAuditBufferService;
 use App\Jobs\FlushAttemptAuditBuffer;
+use App\Exceptions\AlreadySubmittedException;
+use App\Exceptions\ExamExpiredException;
 
 class ExamSessionController extends Controller
 {
@@ -99,7 +101,14 @@ class ExamSessionController extends Controller
 
     /**
      * Start a new exam session.
-     * Logic: expires_at = started_at + duration
+     *
+     * Guards (dijalankan berurutan sebelum membuat Attempt):
+     *   1. Participant check  — user harus terdaftar di exam_participants
+     *   2. Exam availability  — status harus 'published' dan dalam jendela jadwal
+     *   3. Already completed  — satu attempt per exam, tidak bisa restart
+     *   4. Re-entry ongoing   — allow resume jika attempt lama masih aktif
+     *
+     * Logic: expires_at = started_at + duration_minutes
      */
     public function start(Request $request)
     {
@@ -107,37 +116,111 @@ class ExamSessionController extends Controller
             'exam_id' => 'required|exists:exams,id'
         ]);
 
-        $exam = \App\Models\Exam::findOrFail($request->exam_id);
+        $exam      = \App\Models\Exam::findOrFail($request->exam_id);
+        $userId    = Auth::id();
         $sessionId = session()->getId();
 
-        // --- ENFORCE SINGLE SESSION: Invalidate old sessions ---
-        Attempt::where('user_id', Auth::id())
+        // ── GUARD 1: Participant assignment ────────────────────────────────
+        // User harus terdaftar secara eksplisit di exam_participants.
+        // Mencegah siswa dari kelas lain atau luar sekolah mengakses ujian
+        // hanya dengan mengetahui exam_id (IDOR / URL enumeration attack).
+        if (! $exam->hasParticipant($userId)) {
+            throw new \App\Exceptions\NotAParticipantException();
+        }
+
+        // ── GUARD 2: Exam availability (status + schedule) ─────────────────
+        // Ujian harus published. Draft / archived tidak bisa diakses siswa.
+        // Jika ada jadwal (start_at / end_at), waktu sekarang harus berada
+        // di dalam jendela tersebut.
+        if (! $exam->isPublished()) {
+            throw new \App\Exceptions\ExamNotAvailableException(
+                'Ujian belum dipublikasikan dan tidak dapat diikuti saat ini.'
+            );
+        }
+
+        if (! $exam->isWithinSchedule()) {
+            $message = $exam->start_at && now()->lessThan($exam->start_at)
+                ? 'Ujian belum dimulai. Silakan tunggu hingga waktu yang ditentukan.'
+                : 'Waktu pelaksanaan ujian telah berakhir.';
+
+            throw new \App\Exceptions\ExamNotAvailableException($message);
+        }
+
+        // ── GUARD 3: Already completed (no restart) ────────────────────────
+        // Satu attempt per exam per user. Attempt yang sudah 'completed'
+        // tidak bisa di-restart. Ini mencegah user mencoba ulang setelah melihat skor.
+        $completedAttempt = Attempt::where('user_id', $userId)
+            ->where('exam_id', $exam->id)
+            ->where('status', 'completed')
+            ->exists();
+
+        if ($completedAttempt) {
+            throw new \App\Exceptions\AlreadyAttemptedException();
+        }
+
+        // ── GUARD 4: Re-entry for ongoing attempt ──────────────────────────
+        // Jika user sudah punya attempt 'ongoing' (misal: refresh halaman),
+        // JANGAN buat attempt baru — kembalikan yang lama agar jawaban tidak hilang.
+        // Cek juga apakah attempt belum expired.
+        $ongoingAttempt = Attempt::where('user_id', $userId)
             ->where('exam_id', $exam->id)
             ->where('status', 'ongoing')
-            ->update(['status' => 'completed', 'completed_at' => now()]);
+            ->latest()
+            ->first();
 
+        if ($ongoingAttempt) {
+            // Attempt lama masih valid (belum expired) → izinkan re-entry
+            if (! $ongoingAttempt->isExpired()) {
+                // Perbarui session binding agar single-session enforcement tetap akurat
+                $ongoingAttempt->update(['session_id' => $sessionId]);
+
+                try {
+                    $redis = \Illuminate\Support\Facades\Redis::connection();
+                    $redis->hset("attempt:{$ongoingAttempt->id}", 'session_id', $sessionId);
+                } catch (\Exception $e) {
+                    \Log::warning('start() re-entry: Redis session update failed', [
+                        'attempt_id' => $ongoingAttempt->id,
+                    ]);
+                }
+
+                return response()->json([
+                    'message'    => 'Sesi ujian Anda dilanjutkan.',
+                    'resumed'    => true,
+                    'attempt_id' => $ongoingAttempt->id,
+                    'expires_at' => $ongoingAttempt->expires_at->toIso8601String(),
+                ]);
+            }
+
+            // Attempt lama sudah expired → finalize dulu sebelum buat baru
+            $ongoingAttempt->update([
+                'status'       => 'completed',
+                'completed_at' => $ongoingAttempt->expires_at,
+            ]);
+        }
+
+        // ── CREATE NEW ATTEMPT ─────────────────────────────────────────────
         $attempt = Attempt::create([
-            'user_id' => Auth::id(),
-            'exam_id' => $exam->id,
-            'tenant_id' => Auth::user()->tenant_id,
+            'user_id'    => $userId,
+            'exam_id'    => $exam->id,
+            'tenant_id'  => Auth::user()->tenant_id,
             'started_at' => now(),
             'expires_at' => now()->addMinutes($exam->duration_minutes),
-            'status' => 'ongoing',
-            'session_id' => $sessionId // Bind this attempt to current session
+            'status'     => 'ongoing',
+            'session_id' => $sessionId,
         ]);
 
         // --- Advanced Scaling: Redis Patterns ---
         $redis = \Illuminate\Support\Facades\Redis::connection();
-        
-        $redis->set("user:".Auth::id().":last_attempt", $attempt->id, 'EX', 86400);
+
+        $redis->set("user:{$userId}:last_attempt", $attempt->id, 'EX', 86400);
         $redis->hset("attempt:{$attempt->id}", [
-            'exam_id'      => $exam->id,
-            'user_id'      => Auth::id(),
-            'tenant_id'    => Auth::user()->tenant_id, // Store for later use (e.g., SafeMode flush)
-            'status'       => 'ongoing',
-            'session_id'   => $sessionId,
-            'started_at'   => $attempt->started_at->timestamp,
-            'expires_at'   => $attempt->expires_at->timestamp,
+            'exam_id'    => $exam->id,
+            'user_id'    => $userId,
+            'tenant_id'  => Auth::user()->tenant_id,
+            'status'     => 'ongoing',
+            'session_id' => $sessionId,
+            'started_at' => $attempt->started_at->timestamp,
+            'expires_at' => $attempt->expires_at->timestamp,
         ]);
         $redis->expire("attempt:{$attempt->id}", 86400);
 
@@ -148,9 +231,10 @@ class ExamSessionController extends Controller
         );
 
         return response()->json([
-            'message' => 'Exam started successfully.',
+            'message'    => 'Exam started successfully.',
+            'resumed'    => false,
             'attempt_id' => $attempt->id,
-            'expires_at' => $attempt->expires_at->toIso8601String()
+            'expires_at' => $attempt->expires_at->toIso8601String(),
         ]);
     }
 
@@ -170,93 +254,117 @@ class ExamSessionController extends Controller
         abort_if($attempt->user_id !== Auth::id(), 403, 'Akses ditolak. Ujian ini bukan milik Anda.');
         abort_if($attempt->tenant_id !== Auth::user()->tenant_id, 403, 'Akses ditolak.');
 
-        // ── FAST PATH: already done (idempotent) ───────────────────────────────
-        if ($attempt->status === 'completed') {
-            return response()->json(['message' => 'Ujian sudah selesai.']);
-        }
-
-        // ── CENTRALIZED SINGLE-SUBMIT GUARD ───────────────────────────────────
-        $guard = app(\App\Services\DistributedConsistencyGuard::class);
-        $payload = $guard->sign("attempt:{$attempt->id}", [
-            'action' => 'submit',
-            'timestamp' => now()->getPreciseTimestamp(3),
-        ]);
-
+        // ── SERVER-SIDE SUBMIT LOCK (Prevent Concurrent Multi-Submit) ──
         try {
-            $accepted = $guard->guardedWrite(
-                "attempt:{$attempt->id}",
-                $payload,
-                function ($data) use ($attempt) {
-                    // Inside exclusive critical section
-
-                    // 1. Flush all buffered answers from SafeMode buffer to attempt_answers
-                    $safeModeService = app(\App\Services\SafeModeAnswerService::class);
-                    $flushResult = $safeModeService->flush($attempt->id);
-
-                    \Log::info('Pre-submit flush executed', [
-                        'attempt_id' => $attempt->id,
-                        'synced' => $flushResult['synced'] ?? 0,
-                        'success' => $flushResult['success'] ?? false,
-                    ]);
-
-                    // 2. Mark attempt as completed
-                    $attempt->update([
-                        'status' => 'completed',
-                        'completed_at' => now(),
-                        // 'answers' JSON column no longer used — source of truth is attempt_answers
-                    ]);
-
-                    // 3. Cleanup Redis transient keys
-                    try {
-                        $redis = \Illuminate\Support\Facades\Redis::connection();
-                        $redis->del("attempt:{$attempt->id}:answers"); // old Redis hash (legacy key)
-                        $redis->srem("attempts:dirty", $attempt->id);
-                        $redis->hset("attempt:{$attempt->id}", 'status', 'completed');
-                    } catch (\Exception $e) {
-                        \Log::warning("Redis cleanup failed during submit: " . $e->getMessage());
-                    }
+            return \Illuminate\Support\Facades\Cache::lock("submit:{$attempt->id}", 30)->block(5, function () use ($attempt, $request) {
+                // ── GUARD #1: Double-submit protection (idempotent) ────────────────────
+                if ($attempt->status === 'completed') {
+                    throw new AlreadySubmittedException();
                 }
-            );
 
-            if (!$accepted) {
-                // Another server already finalized this attempt — treat as success (idempotent)
-                return response()->json(['message' => 'Ujian sudah selesai.']);
-            }
-        } catch (\Exception $e) {
-            \Log::error("Submit guarded write failed: " . $e->getMessage(), [
-                'attempt_id' => $attempt->id,
-            ]);
-            // Fallback: attempt stuck in ongoing? Try to mark completed
-            Attempt::where('id', $attempt->id)->where('status', '!=', 'completed')
-                ->update(['status' => 'completed', 'completed_at' => now()]);
-            return response()->json([
-                'message' => 'Ujian berhasil dikumpulkan (fallback).',
-                'warning' => 'Terjadi kesalahan sinksi, tapi status disimpan.',
-            ], 202);
+                // ── GUARD #2: Server-side timer enforcement ────────────────────────────
+                if ($attempt->expires_at && now()->greaterThan($attempt->expires_at)) {
+                    if ($attempt->status !== 'completed') {
+                        $attempt->update([
+                            'status'       => 'completed',
+                            'completed_at' => $attempt->expires_at,
+                        ]);
+
+                        try {
+                            $redis = \Illuminate\Support\Facades\Redis::connection();
+                            $redis->hset("attempt:{$attempt->id}", 'status', 'completed');
+                        } catch (\Exception $e) {
+                            \Log::warning("Redis sync after expiry failed: " . $e->getMessage());
+                        }
+
+                        app(ExamAuditBufferService::class)->push(
+                            $attempt->id, 'submit_rejected_expired',
+                            $request->ip(), $request->userAgent()
+                        );
+                    }
+
+                    throw new ExamExpiredException();
+                }
+
+                // ── CENTRALIZED SINGLE-SUBMIT GUARD ───────────────────────────────────
+                $guard = app(\App\Services\DistributedConsistencyGuard::class);
+                $payload = $guard->sign("attempt:{$attempt->id}", [
+                    'action' => 'submit',
+                    'timestamp' => now()->getPreciseTimestamp(3),
+                ]);
+
+                try {
+                    $accepted = $guard->guardedWrite(
+                        "attempt:{$attempt->id}",
+                        $payload,
+                        function ($data) use ($attempt) {
+                            $safeModeService = app(\App\Services\SafeModeAnswerService::class);
+                            $flushResult = $safeModeService->flush($attempt->id);
+
+                            \Log::info('Pre-submit flush executed', [
+                                'attempt_id' => $attempt->id,
+                                'synced' => $flushResult['synced'] ?? 0,
+                                'success' => $flushResult['success'] ?? false,
+                            ]);
+
+                            $attempt->update([
+                                'status' => 'completed',
+                                'completed_at' => now(),
+                            ]);
+
+                            try {
+                                $redis = \Illuminate\Support\Facades\Redis::connection();
+                                $redis->del("attempt:{$attempt->id}:answers");
+                                $redis->srem("attempts:dirty", $attempt->id);
+                                $redis->hset("attempt:{$attempt->id}", 'status', 'completed');
+                            } catch (\Exception $e) {
+                                \Log::warning("Redis cleanup failed during submit: " . $e->getMessage());
+                            }
+                        }
+                    );
+
+                    if (!$accepted) {
+                        return response()->json(['message' => 'Ujian sudah selesai.']);
+                    }
+                } catch (AlreadySubmittedException | ExamExpiredException $e) {
+                    throw $e;
+                } catch (\Exception $e) {
+                    \Log::error("Submit guarded write failed: " . $e->getMessage(), [
+                        'attempt_id' => $attempt->id,
+                    ]);
+                    Attempt::where('id', $attempt->id)->where('status', '!=', 'completed')
+                        ->update(['status' => 'completed', 'completed_at' => now()]);
+                    return response()->json([
+                        'message' => 'Ujian berhasil dikumpulkan (fallback).',
+                        'warning' => 'Terjadi kesalahan sinkronisasi, tapi status disimpan.',
+                    ], 202);
+                }
+
+                // ── RESULT SNAPSHOT: Calculate score once, frozen forever ──────────────
+                try {
+                    $attempt->refresh();
+                    $result = app(\App\Services\ScoreCalculator::class)->calculateAndPersist($attempt);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error("Score snapshot failed: " . $e->getMessage());
+                    $result = ['score' => null];
+                }
+
+                // ── AUDIT TRAIL: flush the per-attempt buffer PLUS log the submit event ──
+                app(ExamAuditBufferService::class)->push(
+                    $attempt->id, 'submit_exam',
+                    $request->ip(), $request->userAgent(),
+                    ['score' => $result['score'] ?? null]
+                );
+                FlushAttemptAuditBuffer::dispatch($attempt->id);
+
+                return response()->json([
+                    'message' => 'Ujian berhasil dikumpulkan.',
+                    'score' => $result['score'] ?? null,
+                ]);
+            });
+        } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
+            return response()->json(['message' => 'Submit sedang diproses, harap tunggu.'], 409);
         }
-
-        // ── RESULT SNAPSHOT: Calculate score once, frozen forever ──────────────
-        try {
-            $attempt->refresh(); // reload after status update
-            $result = app(\App\Services\ScoreCalculator::class)->calculateAndPersist($attempt);
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error("Score snapshot failed: " . $e->getMessage());
-            $result = ['score' => null]; // non-blocking: result page can retry later
-        }
-
-        // ── AUDIT TRAIL: flush the per-attempt buffer PLUS log the submit event ──
-        app(ExamAuditBufferService::class)->push(
-            $attempt->id, 'submit_exam',
-            $request->ip(), $request->userAgent(),
-            ['score' => $result['score'] ?? null]
-        );
-        // Dispatch ONE flush job — drains the full buffer for this attempt
-        FlushAttemptAuditBuffer::dispatch($attempt->id);
-
-        return response()->json([
-            'message' => 'Ujian berhasil dikumpulkan.',
-            'score' => $result['score'] ?? null,
-        ]);
     }
 
 
@@ -316,6 +424,9 @@ class ExamSessionController extends Controller
                 // Standard High-Performance Path (Redis)
                 $redis->hset("attempt:{$attemptId}:answers", $request->question_id, $request->selected_option);
                 $redis->sadd("attempts:dirty", $attemptId);
+                // Catat waktu attempt pertama masuk dirty SET (NX = hanya jika belum ada).
+                // Source of truth untuk metric exam_attempt_sync_lag_seconds di Prometheus.
+                $redis->set("attempt:{$attemptId}:dirty_since", now()->timestamp, 'EX', 14400, 'NX');
                 
                 // Real-time updates (throttled)
                 $examId = $redis->hget("attempt:{$attemptId}", 'exam_id');
@@ -428,13 +539,22 @@ class ExamSessionController extends Controller
             return response()->json(['message' => 'Akses ditolak.'], 403);
         }
 
+        // --- ANTI CHEAT: Update Focus Loss Counter ---
+        if ($request->type === 'focus_loss') {
+            $attempt->increment('focus_loss_count');
+        }
+
+        $rawFingerprint = $request->header('X-Device-Fingerprint', 'unknown');
+        $secureFingerprint = hash_hmac('sha256', $rawFingerprint . '|' . Auth::id() . '|' . $request->ip(), config('app.key'));
+
         $cheatLog = \App\Models\CheatLog::create([
             'attempt_id' => $attempt->id,
             'type' => $request->type,
             'timestamp' => now(),
             'meta' => [
                 'user_agent' => $request->userAgent(),
-                'ip' => $request->ip()
+                'ip' => $request->ip(),
+                'device_fingerprint' => $secureFingerprint,
             ]
         ]);
 

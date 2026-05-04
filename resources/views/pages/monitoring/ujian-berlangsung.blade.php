@@ -8,29 +8,34 @@
             <p class="mt-1 text-sm text-slate-500">Pantau sesi ujian yang sedang berjalan secara real-time.</p>
         </div>
         <div class="mt-4 flex md:ml-4 md:mt-0">
-            <button type="button" class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50">
-                Ekspor
-            </button>
-            <button type="button" class="ml-3 inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
-                Tambah Data
-            </button>
+            <a href="{{ route('monitoring.ujian-berlangsung') }}" class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50">
+                Refresh
+            </a>
         </div>
     </div>
 
-    <!-- Table Section -->
-    <div class="bg-white shadow-sm ring-1 ring-slate-900/5 sm:rounded-xl p-6">
-        <div class="sm:flex sm:items-center">
-            <div class="sm:flex-auto">
-                <div class="relative max-w-sm">
-                    <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                        <svg class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
-                        </svg>
-                    </div>
-                    <input type="text" class="block w-full rounded-md border-0 py-1.5 pl-10 text-slate-900 ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6" placeholder="Cari data...">
-                </div>
-            </div>
+    {{-- Stats Cards --}}
+    <div class="grid grid-cols-2 gap-5 sm:grid-cols-4 mb-8">
+        <div class="bg-white overflow-hidden shadow-sm rounded-lg ring-1 ring-green-200 p-5">
+            <p class="text-sm font-medium text-green-600 truncate">Sesi Aktif Sekarang</p>
+            <p class="mt-1 text-3xl font-semibold text-green-700">{{ number_format($stats['active_sessions']) }}</p>
         </div>
+        <div class="bg-white overflow-hidden shadow-sm rounded-lg ring-1 ring-slate-900/5 p-5">
+            <p class="text-sm font-medium text-slate-500 truncate">Total Peserta (Semua)</p>
+            <p class="mt-1 text-3xl font-semibold text-slate-900">{{ number_format($stats['total_participants']) }}</p>
+        </div>
+        <div class="bg-white overflow-hidden shadow-sm rounded-lg ring-1 ring-slate-900/5 p-5">
+            <p class="text-sm font-medium text-slate-500 truncate">Sekolah Aktif</p>
+            <p class="mt-1 text-3xl font-semibold text-slate-900">{{ number_format($stats['active_schools']) }}</p>
+        </div>
+        <div class="bg-white overflow-hidden shadow-sm rounded-lg ring-1 ring-red-200 p-5">
+            <p class="text-sm font-medium text-red-500 truncate">Alert Kecurangan (Hari Ini)</p>
+            <p class="mt-1 text-3xl font-semibold text-red-600">{{ number_format($stats['cheat_alerts']) }}</p>
+        </div>
+    </div>
+
+    {{-- Table Section --}}
+    <div class="bg-white shadow-sm ring-1 ring-slate-900/5 sm:rounded-xl p-6">
         <div class="mt-8 flow-root">
             <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
                 <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
@@ -46,9 +51,14 @@
                         </thead>
                         <tbody class="divide-y divide-slate-200">
                             @forelse ($sessions as $session)
-                            <tr>
+                            <tr class="hover:bg-slate-50 transition-colors">
                                 <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-0">
-                                    {{ $session->user->name ?? 'N/A' }}
+                                    <div class="flex items-center gap-2">
+                                        <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
+                                            {{ strtoupper(substr($session->user->name ?? 'U', 0, 2)) }}
+                                        </span>
+                                        {{ $session->user->name ?? 'N/A' }}
+                                    </div>
                                 </td>
                                 <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
                                     {{ $session->tenant->school_name ?? 'N/A' }}
@@ -60,14 +70,23 @@
                                     {{ $session->started_at ? $session->started_at->format('d M Y, H:i') : 'N/A' }}
                                 </td>
                                 <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
-                                    <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
-                                        {{ ucfirst($session->status) }}
-                                    </span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
+                                            <span class="mr-1.5 h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                                            {{ ucfirst($session->status) }}
+                                        </span>
+                                        <a href="{{ route('monitoring.exam.proctor', $session->exam_id) }}" class="text-indigo-600 hover:text-indigo-900 font-bold">Proctor Dashboard &rarr;</a>
+                                    </div>
                                 </td>
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="5" class="py-6 text-center text-sm text-slate-500">Tidak ada ujian yang sedang berlangsung.</td>
+                                <td colspan="5" class="py-12 text-center text-sm text-slate-500">
+                                    <svg class="mx-auto h-12 w-12 text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    Tidak ada ujian yang sedang berlangsung.
+                                </td>
                             </tr>
                             @endforelse
                         </tbody>
@@ -75,11 +94,10 @@
                 </div>
             </div>
         </div>
-        <!-- Pagination -->
+        {{-- Pagination --}}
         <div class="mt-4 pt-4 border-t border-slate-200">
             {{ $sessions->links() }}
         </div>
-
     </div>
 </div>
 @endsection

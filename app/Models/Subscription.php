@@ -2,33 +2,33 @@
 
 namespace App\Models;
 
-use App\Enums\SubscriptionStatus;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Subscription extends Model
 {
-    protected $guarded = ['id'];
+    use HasFactory;
 
-    protected $casts = [
-        'status' => SubscriptionStatus::class,
-        'started_at' => 'datetime',
-        'ended_at' => 'datetime',
-        'canceled_at' => 'datetime',
-        'trial_ends_at' => 'datetime',
+    protected $fillable = [
+        'tenant_id',
+        'plan_id',
+        'status',
+        'starts_at',
+        'expires_at',
     ];
 
-    public function tenant()
-    {
-        return $this->belongsTo(Tenant::class);
-    }
+    protected $casts = [
+        'starts_at' => 'datetime',
+        'expires_at' => 'datetime',
+    ];
 
     public function plan()
     {
         return $this->belongsTo(Plan::class);
     }
 
-    public function invoice()
+    public function tenant()
     {
-        return $this->belongsTo(Invoice::class);
+        return $this->belongsTo(Tenant::class);
     }
 }

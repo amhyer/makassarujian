@@ -7,10 +7,28 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 });
 
 Broadcast::channel('exam.{examId}', function ($user, $examId) {
-    // Only proctors and students enrolled in this exam can join
+    // Super Admin and School Admin can always monitor
+    if ($user->hasRole(['Super Admin', 'School Admin', 'Proctor'])) {
+        return [
+            'id'   => $user->id,
+            'name' => $user->name,
+            'role' => $user->getRoleNames()->first(),
+        ];
+    }
+
+    // Students must be enrolled as participants in this specific exam
+    $isParticipant = \App\Models\ExamParticipant::where('exam_id', $examId)
+        ->where('user_id', $user->id)
+        ->where('tenant_id', $user->tenant_id) // Tenant isolation
+        ->exists();
+
+    if (!$isParticipant) {
+        return false; // Reject unauthorized connections
+    }
+
     return [
-        'id' => $user->id,
+        'id'   => $user->id,
         'name' => $user->name,
-        'role' => $user->role,
+        'role' => 'Student',
     ];
 });

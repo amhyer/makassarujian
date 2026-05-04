@@ -2,30 +2,36 @@
 
 namespace App\Models;
 
-use App\Enums\Billing\BillingCycle;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 
 class Plan extends Model
 {
-    protected $guarded = ['id'];
+    use HasFactory;
+
+    protected $fillable = [
+        'name',
+        'slug',
+        'price',
+        'billing_cycle',
+        'features',
+        'student_limit',
+        'exam_limit',
+        'has_proctoring_feature',
+        'is_active',
+    ];
 
     protected $casts = [
-        'price' => 'integer',
-        'features' => 'array',
+        'features' => 'array', // Cast kolom JSON ke format array secara otomatis
+        'price' => 'decimal:2',
+        'student_limit' => 'integer',
+        'exam_limit' => 'integer',
+        'has_proctoring_feature' => 'boolean',
         'is_active' => 'boolean',
-        'billing_cycle' => BillingCycle::class,
     ];
 
     public function subscriptions()
     {
         return $this->hasMany(Subscription::class);
-    }
-
-    protected function formattedPrice(): Attribute
-    {
-        return Attribute::make(
-            get: fn () => 'Rp ' . number_format($this->price, 0, ',', '.')
-        );
     }
 }

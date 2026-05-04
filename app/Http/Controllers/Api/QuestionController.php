@@ -143,12 +143,12 @@ class QuestionController extends Controller
                 ];
 
                 // Lookup Subject
-                $subject = Subject::where('name', 'ilike', $subjectName)
-                    ->orWhere('code', 'ilike', $subjectName)
+                $subject = Subject::where('name', 'like', $subjectName)
+                    ->orWhere('code', 'like', $subjectName)
                     ->first();
                 
                 // Lookup Class
-                $class = Classes::where('name', 'ilike', $className)
+                $class = Classes::where('name', 'like', $className)
                     ->orWhere('level', $className)
                     ->first();
 

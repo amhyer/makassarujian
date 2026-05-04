@@ -29,7 +29,7 @@ class QuestionController extends Controller
         }
 
         if ($request->filled('search')) {
-            $query->where('content->question_text', 'ilike', '%' . $request->search . '%');
+            $query->where('content->question_text', 'like', '%' . $request->search . '%');
         }
 
         $questions = $query->latest()->paginate(20);

@@ -67,6 +67,16 @@ class SafeModeAnswerService
                 $pipe->expire($dirtySetKey, 14400);
             });
 
+            // Catat waktu attempt pertama kali masuk dirty SET (hanya jika belum ada).
+            // NX = only set if Not eXists → tidak overwrite jika sudah di-set sebelumnya.
+            // Dipakai oleh RedisSyncLagCollector untuk menghitung usia data yang belum di-sync.
+            $this->redis->set(
+                "attempt:{$attemptId}:dirty_since",
+                now()->timestamp,
+                'EX', 14400,  // TTL sama dengan answers hash
+                'NX'          // Hanya tulis jika belum ada (first-write-wins)
+            );
+
             return true;
         } catch (\Exception $e) {
             Log::error("SafeMode buffer failed: " . $e->getMessage(), [
@@ -188,6 +198,8 @@ class SafeModeAnswerService
             $keyRecreated = $this->redis->exists($answersKey);
             if (!$keyRecreated) {
                 $this->redis->srem($dirtySetKey, $attemptId);
+                // Hapus dirty_since — data sudah aman di DB
+                $this->redis->del("attempt:{$attemptId}:dirty_since");
             } else {
                 \Log::info("Concurrent answers detected during flush; dirty flag retained.", [
                     'attempt_id' => $attemptId,
@@ -223,93 +235,7 @@ class SafeModeAnswerService
         }
     }
 
-        try {
-            // 1. Get buffer (all pending answers)
-            $answers = $this->redis->hgetall($answersKey);
-            $count = count($answers);
 
-            if ($count === 0) {
-                // Nothing to flush
-                Cache::lock($lockKey)->release();
-                return ['success' => true, 'synced' => 0];
-            }
-
-            // 2. Batch prepare data untuk upsert
-            $now = now()->toDateTimeString();
-            $rows = [];
-
-            foreach ($answers as $questionId => $selectedKey) {
-                $rows[] = [
-                    'id' => Str::uuid()->toString(),
-                    'attempt_id' => $attemptId,
-                    'question_id' => $questionId,
-                    'tenant_id' => $this->getTenantIdFromAttempt($attemptId),
-                    'selected_key' => $selectedKey,
-                    'answered_at' => $now,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-            }
-
-            // 3. Bulk upsert dalam chunk (batasi memory DB)
-            $chunks = array_chunk($rows, self::BATCH_SIZE);
-            $totalSynced = 0;
-
-            DB::transaction(function () use ($chunks, &$totalSynced) {
-                foreach ($chunks as $chunk) {
-                    // Upsert: insert baru atau update jika sudah ada (last-write-wins)
-                    // Unique constraint: (attempt_id, question_id)
-                    AttemptAnswer::upsert(
-                        $chunk,
-                        ['attempt_id', 'question_id'],
-                        ['selected_key', 'answered_at', 'updated_at', 'tenant_id']
-                    );
-                    $totalSynced += count($chunk);
-                }
-            }, 10);
-
-            // 4. Update attempts.last_synced_at
-            Attempt::where('id', $attemptId)->update([
-                'last_synced_at' => $now,
-            ]);
-
-            // 5. Cleanup Redis: Hapus answers hash & remove from dirty set (atomic)
-            try {
-                $this->redis->pipeline(function ($pipe) use ($answersKey, $dirtySetKey, $attemptId) {
-                    $pipe->del($answersKey);
-                    $pipe->srem($dirtySetKey, $attemptId);
-                });
-            } catch (\Exception $e) {
-                Log::warning("Redis cleanup failed: " . $e->getMessage());
-            }
-
-            Cache::lock($lockKey)->release();
-
-            Log::info("SafeMode flush completed", [
-                'attempt_id' => $attemptId,
-                'synced' => $totalSynced,
-            ]);
-
-            return [
-                'success' => true,
-                'synced' => $totalSynced,
-                'attempt_id' => $attemptId,
-            ];
-
-        } catch (\Exception $e) {
-            Log::error("SafeMode flush failed: " . $e->getMessage(), [
-                'attempt_id' => $attemptId,
-            ]);
-
-            Cache::lock($lockKey)->release();
-
-            return [
-                'success' => false,
-                'error' => $e->getMessage(),
-                'synced' => 0,
-            ];
-        }
-    }
 
     /**
      * Flush semua attempts yang terdaftar dalam attempts:dirty set.

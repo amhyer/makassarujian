@@ -3,6 +3,10 @@
 @section('content')
 <!-- LZ-String for High Performance Compression -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
+<!-- Exam Anti Cheat -->
+<script src="{{ asset('js/exam-anti-cheat.js') }}"></script>
+<!-- Exam Panic Listener -->
+<script src="{{ asset('js/exam-panic-listener.js') }}"></script>
 
 <div x-data="examEngine({
     attemptId: '{{ $attempt->id }}',
@@ -135,6 +139,15 @@ function examEngine(config) {
             window.addEventListener('safe-mode-updated', (e) => {
                 this.isSafeMode = e.detail;
             });
+
+            // Initialize Anti Cheat
+            window.antiCheat = ExamAntiCheat(this.attemptId);
+            window.antiCheat.enterFullscreen(); // Auto request fullscreen
+
+            // Initialize Panic Mode Listener
+            if (window.ExamPanicListener) {
+                window.panicListener = ExamPanicListener('{{ auth()->user()->tenant_id ?? '' }}');
+            }
         },
 
         async initDB() {
@@ -167,18 +180,41 @@ function examEngine(config) {
             });
         },
 
+        async fetchWithRetry(url, options, maxRetries = 3, initialDelay = 1000) {
+            let lastError;
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.ok) return response;
+                    
+                    // Don't retry for 4xx errors except 429
+                    if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+                        return response;
+                    }
+                    lastError = new Error(`HTTP ${response.status}`);
+                } catch (e) {
+                    lastError = e;
+                }
+                
+                const delay = initialDelay * Math.pow(2, i);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+            throw lastError;
+        },
+
         async saveAnswer(questionId, answer) {
             this.isSyncing = true;
             this.lastSynced = false;
 
             const payload = {
+                attempt_id: this.attemptId, // Added for CheckExamSession middleware
                 question_id: questionId,
                 selected_option: answer,
                 timestamp: new Date().toISOString()
             };
 
             try {
-                const response = await fetch(config.saveUrl, {
+                const response = await this.fetchWithRetry(config.saveUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -193,6 +229,13 @@ function examEngine(config) {
                     if (data.safe_mode !== undefined) {
                         this.isSafeMode = data.safe_mode;
                     }
+                } else if (response.status === 403) {
+                    const data = await response.json();
+                    if (data.error_code === 'MULTI_DEVICE_DETECTED') {
+                        alert(data.message);
+                        window.location.href = '/login';
+                    }
+                    await this.addToBuffer(payload);
                 } else {
                     await this.addToBuffer(payload);
                 }
@@ -226,13 +269,13 @@ function examEngine(config) {
             const item = JSON.parse(LZString.decompressFromUTF16(compressed));
 
             try {
-                const response = await fetch(config.saveUrl, {
+                const response = await this.fetchWithRetry(config.saveUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                     },
-                    body: JSON.stringify(item)
+                    body: JSON.stringify({...item, attempt_id: this.attemptId})
                 });
 
                 if (response.status === 200) {
